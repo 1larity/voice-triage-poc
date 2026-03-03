@@ -161,7 +161,11 @@ class HeuristicExtractor:
     def _normalize_year(year: int) -> int:
         """normalize year."""
         if year < 100:
-            return 2000 + year
+            current_year = datetime.now().year
+            normalized = 2000 + year
+            if normalized > current_year + 20:
+                normalized -= 100
+            return normalized
         return year
 
     @staticmethod
