@@ -7,6 +7,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import Lock
 from typing import Annotated, Any
 
 from fastapi import APIRouter, FastAPI, File, HTTPException, UploadFile
@@ -80,6 +81,15 @@ class ClientConfigResponse(BaseModel):
     vad_max_turn_ms: int
 
 
+class ReindexResponse(BaseModel):
+    """Reindexresponse."""
+
+    chunk_count: int
+    kb_file_count: int
+    indexed_at: str
+    index_path: str
+
+
 class TurnResponse(BaseModel):
     """Turnresponse."""
 
@@ -106,6 +116,8 @@ class ApiRuntime:
     default_voice_id: str | None
     engine: ConversationEngine
     session_voice_ids: dict[str, str] = field(default_factory=dict)
+    reindex_lock: Lock = field(default_factory=Lock)
+    last_reindex_started_at: float = 0.0
 
 
 class TriageApi:
@@ -184,6 +196,47 @@ class TriageApi:
             vad_min_speech_ms=settings.web_vad_min_speech_ms,
             vad_silence_hold_ms=settings.web_vad_silence_hold_ms,
             vad_max_turn_ms=settings.web_vad_max_turn_ms,
+        )
+
+    def reindex_kb(self) -> ReindexResponse:
+        """Rebuild the local knowledge base index and return index stats."""
+        from voice_triage.rag.index import build_index
+
+        if not self.runtime.reindex_lock.acquire(blocking=False):
+            raise HTTPException(status_code=409, detail="Reindex already in progress.")
+
+        try:
+            now = time.monotonic()
+            min_interval = self.runtime.settings.reindex_min_interval_seconds
+            elapsed = now - self.runtime.last_reindex_started_at
+            if elapsed < min_interval:
+                retry_after = int(min_interval - elapsed) + 1
+                raise HTTPException(
+                    status_code=429,
+                    detail=(
+                        "Reindex called too frequently. "
+                        f"Please retry in about {retry_after} second(s)."
+                    ),
+                    headers={"Retry-After": str(retry_after)},
+                )
+            self.runtime.last_reindex_started_at = now
+
+            kb_dir = self.runtime.settings.kb_dir
+            kb_dir.mkdir(parents=True, exist_ok=True)
+            kb_file_count = sum(
+                1
+                for path in kb_dir.rglob("*")
+                if path.is_file() and path.suffix.lower() in {".md", ".txt"}
+            )
+            chunk_count = build_index(kb_dir, self.runtime.settings.rag_index_path)
+        finally:
+            self.runtime.reindex_lock.release()
+
+        return ReindexResponse(
+            chunk_count=chunk_count,
+            kb_file_count=kb_file_count,
+            indexed_at=datetime.now(tz=UTC).isoformat(),
+            index_path=str(self.runtime.settings.rag_index_path),
         )
 
     def process_transcript_turn(self, session_id: str, transcript: str) -> TurnResponse:
@@ -356,6 +409,15 @@ def create_api_router(
     def get_client_config() -> ClientConfigResponse:
         """Get client config."""
         return api.get_client_config()
+
+    @router.post(
+        "/reindex",
+        response_model=ReindexResponse,
+        include_in_schema=include_in_schema,
+    )
+    def reindex_kb() -> ReindexResponse:
+        """Reindex local knowledge base files into sqlite RAG index."""
+        return api.reindex_kb()
 
     @router.post(
         "/session/{session_id}/voice",

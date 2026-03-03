@@ -48,5 +48,13 @@ def run_mcp_server() -> int:
         except HTTPException as exc:
             raise RuntimeError(f"MCP tool failed: {exc.detail}") from exc
 
+    @mcp.tool(name="reindex_kb")
+    def reindex_kb() -> dict[str, Any]:
+        """Reindex local knowledge base data into sqlite RAG store."""
+        try:
+            return api.reindex_kb().model_dump()
+        except HTTPException as exc:
+            raise RuntimeError(f"MCP tool failed: {exc.detail}") from exc
+
     mcp.run()
     return 0

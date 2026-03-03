@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -9,6 +10,32 @@ from pathlib import Path
 
 class PiperUnavailable(RuntimeError):
     """Raised when Piper binary/model is missing."""
+
+
+_UK_CURRENCY_PATTERN = re.compile(r"£\s*([0-9][0-9,]*)(?:\.([0-9]{1,2}))?")
+
+
+def normalize_tts_text(text: str) -> str:
+    """Normalize user-facing response text for clearer UK TTS pronunciation."""
+    return _UK_CURRENCY_PATTERN.sub(_replace_uk_currency_match, text)
+
+
+def _replace_uk_currency_match(match: re.Match[str]) -> str:
+    """Render UK currency values in natural spoken order for TTS."""
+    pounds_raw = match.group(1).replace(",", "")
+    pence_raw = match.group(2)
+
+    pounds = int(pounds_raw)
+    pence = int(pence_raw.ljust(2, "0")) if pence_raw else 0
+
+    pound_part = "1 pound" if pounds == 1 else f"{pounds} pounds"
+    if pence == 0:
+        return pound_part
+    if pounds == 0:
+        return "1 penny" if pence == 1 else f"{pence} pence"
+
+    pence_part = "1 penny" if pence == 1 else f"{pence} pence"
+    return f"{pound_part} and {pence_part}"
 
 
 class PiperClient:
@@ -53,11 +80,12 @@ class PiperClient:
             "--output_file",
             str(output_path),
         ]
+        normalized_text = normalize_tts_text(text)
 
         try:
             process = subprocess.run(
                 command,
-                input=text,
+                input=normalized_text,
                 text=True,
                 capture_output=True,
                 check=False,

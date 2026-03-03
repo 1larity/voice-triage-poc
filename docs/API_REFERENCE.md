@@ -53,6 +53,23 @@ Response:
 
 Returns frontend runtime tuning values (including VAD thresholds and turn timing).
 
+## Reindex Knowledge Base
+
+`POST /api/v1/reindex`
+
+Rebuilds the sqlite RAG index from the current `./kb` files without restarting the server.
+
+Response:
+
+```json
+{
+  "chunk_count": 412,
+  "kb_file_count": 68,
+  "indexed_at": "2026-03-03T17:58:12.240000+00:00",
+  "index_path": "data/rag_index.db"
+}
+```
+
 ## Select Voice
 
 `POST /api/v1/session/{session_id}/voice`

@@ -33,7 +33,7 @@ def run_demo() -> int:
     init_db(settings.db_path)
 
     chunk_count = build_index(settings.kb_dir, settings.rag_index_path)
-    print(f"KB index ready with {chunk_count} chunks.")
+    print(f"Knowledge base index ready with {chunk_count} chunks.")
 
     asr_client = WhisperCppClient(
         settings.whispercpp_bin,
@@ -86,13 +86,22 @@ def run_demo() -> int:
     return 0
 
 
-def run_build_index() -> int:
-    """Run build index."""
+def run_reindex() -> int:
+    """Run reindex."""
     settings = load_settings()
     settings.kb_dir.mkdir(parents=True, exist_ok=True)
-    chunk_count = build_index(settings.kb_dir, settings.rag_index_path)
+    try:
+        chunk_count = build_index(settings.kb_dir, settings.rag_index_path)
+    except RuntimeError as exc:
+        print(str(exc))
+        return 2
     print(f"Indexed {chunk_count} chunks into {settings.rag_index_path}.")
     return 0
+
+
+def run_build_index() -> int:
+    """Run build index."""
+    return run_reindex()
 
 
 def run_web(host: str, port: int, ssl_certfile: str | None, ssl_keyfile: str | None) -> int:
@@ -245,6 +254,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="voice_triage")
     subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("demo", help="Run end-to-end local demo")
+    subparsers.add_parser("reindex", help="Rebuild local RAG index from ./kb")
     subparsers.add_parser("build-index", help="Build local RAG index from ./kb")
     subparsers.add_parser("stop-web", help="Stop web server via pid file")
     subparsers.add_parser("stop-api", help="Stop REST API server via pid file")
@@ -292,8 +302,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command in {None, "demo"}:
         return run_demo()
-    if args.command == "build-index":
-        return run_build_index()
+    if args.command in {"build-index", "reindex"}:
+        return run_reindex()
     if args.command == "stop-web":
         return run_stop_http("web_server.pid")
     if args.command == "stop-api":

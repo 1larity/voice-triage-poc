@@ -87,8 +87,8 @@ Important env vars:
 - Normalize accepted move dates to `YYYY-MM-DD`.
 
 ### RAG Responses
-- Return concise user-facing answers, not raw KB schema text dumps.
-- Avoid low-relevance hallucinated matches; fail gracefully with KB-missing message.
+- Return concise user-facing answers, not raw knowledge base schema text dumps.
+- Avoid low-relevance hallucinated matches; fail gracefully with a knowledge-base-missing message.
 
 ## Coding Guidelines
 

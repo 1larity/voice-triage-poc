@@ -59,6 +59,16 @@ Output:
 - outcome metadata
 - optional TTS fields
 
+### `reindex_kb`
+
+Input: none
+
+Output:
+- `chunk_count`
+- `kb_file_count`
+- `indexed_at`
+- `index_path`
+
 ## Error Handling
 
 Tool failures return MCP errors. Current implementation converts API-layer HTTP exceptions into runtime failures with details.
@@ -68,7 +78,8 @@ Tool failures return MCP errors. Current implementation converts API-layer HTTP 
 1. Call `create_session`
 2. Optional `list_voices` then `select_voice`
 3. Repeatedly call `turn_text`
-4. Use returned response text/TTS URL in your host application
+4. Call `reindex_kb` when knowledge base files are updated
+5. Use returned response text/TTS URL in your host application
 
 ## Compatibility Notes
 
