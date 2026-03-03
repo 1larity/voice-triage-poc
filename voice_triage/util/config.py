@@ -36,6 +36,7 @@ class Settings:
     whispercpp_gpu_layers: int
     whispercpp_threads: int | None
     whispercpp_extra_args: tuple[str, ...]
+    whispercpp_timeout_seconds: float
     inference_backend: str
     byo_inference_url: str | None
     byo_inference_timeout_seconds: float
@@ -116,6 +117,9 @@ def load_settings() -> Settings:
             shlex.split(whisper_extra_args_raw, posix=os.name != "nt")
             if whisper_extra_args_raw
             else []
+        ),
+        whispercpp_timeout_seconds=_env_float(
+            "WHISPERCPP_TIMEOUT_SECONDS", default=45.0, minimum=1.0
         ),
         inference_backend=os.getenv("VOICE_TRIAGE_INFERENCE_BACKEND", "local"),
         byo_inference_url=os.getenv("VOICE_TRIAGE_BYO_INFERENCE_URL"),

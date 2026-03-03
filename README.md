@@ -56,6 +56,7 @@ uv sync --dev
   -WhisperUseGpu $true `
   -WhisperGpuLayers 60 `
   -WhisperThreads 6 `
+  -WhisperTimeoutSeconds 45 `
   -InferenceBackend "local" `
   -ByoInferenceUrl "" `
   -ByoApiStyle "generic" `
@@ -211,6 +212,7 @@ For faster STT turn latency on NVIDIA GPUs, use a CUDA-enabled `whisper.cpp` bui
 WHISPERCPP_USE_GPU=1
 WHISPERCPP_GPU_LAYERS=60
 WHISPERCPP_THREADS=6
+WHISPERCPP_TIMEOUT_SECONDS=45
 ```
 
 Notes:

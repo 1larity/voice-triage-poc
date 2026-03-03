@@ -4,6 +4,7 @@ param(
     [bool]$WhisperUseGpu = $false,
     [int]$WhisperGpuLayers = 60,
     [int]$WhisperThreads = 0,
+    [double]$WhisperTimeoutSeconds = 45.0,
     [string]$WhisperExtraArgs = "",
     [ValidateSet("local", "byo")]
     [string]$InferenceBackend = "local",
@@ -111,6 +112,7 @@ $content = @(
     "WHISPERCPP_USE_GPU=$([int]$WhisperUseGpu)"
     "WHISPERCPP_GPU_LAYERS=$WhisperGpuLayers"
     "WHISPERCPP_THREADS=$WhisperThreads"
+    "WHISPERCPP_TIMEOUT_SECONDS=$WhisperTimeoutSeconds"
     "WHISPERCPP_EXTRA_ARGS=$WhisperExtraArgs"
     "VOICE_TRIAGE_INFERENCE_BACKEND=$InferenceBackend"
     "VOICE_TRIAGE_BYO_INFERENCE_URL=$ByoInferenceUrl"

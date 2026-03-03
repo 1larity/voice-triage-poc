@@ -32,6 +32,7 @@ class WhisperCppClient:
         gpu_layers: int = 60,
         threads: int | None = None,
         extra_args: tuple[str, ...] = (),
+        timeout_seconds: float = 45.0,
     ) -> None:
         """init  ."""
         self.bin_path = Path(bin_path).expanduser() if bin_path else None
@@ -40,6 +41,7 @@ class WhisperCppClient:
         self.gpu_layers = max(0, gpu_layers)
         self.threads = threads
         self.extra_args = extra_args
+        self.timeout_seconds = max(1.0, timeout_seconds)
 
     def transcribe(self, wav_path: Path) -> AsrResult:
         """Transcribe."""
@@ -65,7 +67,19 @@ class WhisperCppClient:
         if self.extra_args:
             command.extend(self.extra_args)
 
-        process = subprocess.run(command, capture_output=True, text=True, check=False)
+        try:
+            process = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=self.timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                "whisper.cpp timed out after "
+                f"{self.timeout_seconds:.1f}s while processing audio."
+            ) from exc
         if process.returncode != 0:
             stderr = process.stderr.strip()
             raise RuntimeError(f"whisper.cpp failed with code {process.returncode}: {stderr}")
