@@ -36,6 +36,13 @@ def test_rest_api_session_text_turn_voice_and_tts_routes(
     data_dir = _configure_test_env(monkeypatch, tmp_path)
     client = TestClient(create_rest_app())
 
+    reindex_response = client.post("/api/v1/reindex")
+    assert reindex_response.status_code == 200
+    reindex_payload = reindex_response.json()
+    assert reindex_payload["chunk_count"] > 0
+    assert reindex_payload["kb_file_count"] > 0
+    assert reindex_payload["index_path"].endswith("rag_index.db")
+
     config_response = client.get("/api/v1/config")
     assert config_response.status_code == 200
     config_payload = config_response.json()
@@ -156,3 +163,43 @@ def test_rest_api_rejects_non_alphanumeric_transcript(
 
     assert turn_response.status_code == 422
     assert "alphanumeric" in turn_response.text
+
+
+def test_rest_api_reindex_rate_limit_returns_429(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _configure_test_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("VOICE_TRIAGE_REINDEX_MIN_INTERVAL_SECONDS", "60")
+
+    client = TestClient(create_rest_app())
+    first = client.post("/api/v1/reindex")
+    assert first.status_code == 200
+
+    second = client.post("/api/v1/reindex")
+    assert second.status_code == 429
+    assert "Retry-After" in second.headers
+
+
+def test_rest_api_reindex_runtime_conflict_maps_to_409(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _configure_test_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("VOICE_TRIAGE_REINDEX_MIN_INTERVAL_SECONDS", "60")
+
+    client = TestClient(create_rest_app())
+
+    import voice_triage.rag.index as rag_index
+
+    original_build_index = rag_index.build_index
+
+    def _raise_in_progress(*args: object, **kwargs: object) -> int:
+        raise RuntimeError("Reindex already in progress. Please wait and retry.")
+
+    monkeypatch.setattr(rag_index, "build_index", _raise_in_progress)
+    conflict = client.post("/api/v1/reindex")
+    assert conflict.status_code == 409
+    assert "already in progress" in conflict.text.lower()
+
+    monkeypatch.setattr(rag_index, "build_index", original_build_index)
+    success = client.post("/api/v1/reindex")
+    assert success.status_code == 200

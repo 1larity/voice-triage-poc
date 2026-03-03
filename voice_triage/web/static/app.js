@@ -38,6 +38,7 @@ const statusText = document.getElementById("statusText");
 const startBtn = document.getElementById("startBtn");
 const stopBtn = document.getElementById("stopBtn");
 const newSessionBtn = document.getElementById("newSessionBtn");
+const reindexBtn = document.getElementById("reindexBtn");
 const voiceSelect = document.getElementById("voiceSelect");
 const capturedDataBox = document.getElementById("capturedDataBox");
 
@@ -182,6 +183,15 @@ async function createSession() {
       addMessage("system", `Could not set voice: ${error}`);
     }
   }
+}
+
+async function reindexKnowledgeBase() {
+  const response = await fetch(`${API_BASE}/reindex`, { method: "POST" });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Failed to reindex knowledge base (${response.status}): ${detail}`);
+  }
+  return response.json();
 }
 
 async function startRecording() {
@@ -552,6 +562,25 @@ newSessionBtn.addEventListener("click", async () => {
     setStatus("New session ready.");
   } catch (error) {
     addMessage("system", `Could not create session: ${error}`);
+  }
+});
+
+reindexBtn.addEventListener("click", async () => {
+  reindexBtn.disabled = true;
+  const previousStatus = statusText.textContent;
+  setStatus("Reindexing knowledge base...");
+  try {
+    const payload = await reindexKnowledgeBase();
+    addMessage(
+      "system",
+      `Knowledge base reindexed: ${payload.chunk_count} chunks from ${payload.kb_file_count} files.`,
+    );
+    setStatus("Knowledge base reindex complete.");
+  } catch (error) {
+    addMessage("system", `Knowledge base reindex failed: ${error}`);
+    setStatus(previousStatus || "Ready. Click Start Listening.");
+  } finally {
+    reindexBtn.disabled = false;
   }
 });
 

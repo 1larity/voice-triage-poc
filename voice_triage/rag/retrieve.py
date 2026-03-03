@@ -9,6 +9,7 @@ import sqlite3
 from pathlib import Path
 
 from voice_triage.rag.index import embed_text
+from voice_triage.rag.stopwords import STOPWORDS
 from voice_triage.rag.types import DocumentChunk, RetrievedChunk
 
 
@@ -36,15 +37,19 @@ class SqliteRetriever:
         matches: list[RetrievedChunk] = []
 
         with sqlite3.connect(self.index_db_path) as connection:
-            rows = connection.execute("SELECT id, source, text, embedding FROM chunks").fetchall()
+            rows = connection.execute(
+                "SELECT id, source, text, embedding, metadata FROM chunks"
+            ).fetchall()
 
         for row in rows:
             embedding = json.loads(row[3])
+            metadata = _parse_metadata(row[4])
             chunk = DocumentChunk(
                 chunk_id=row[0],
                 source=row[1],
                 text=row[2],
                 embedding=embedding,
+                metadata=metadata,
             )
             score = _hybrid_similarity(query=query, query_embedding=query_embedding, chunk=chunk)
             matches.append(RetrievedChunk(chunk=chunk, score=score))
@@ -54,34 +59,6 @@ class SqliteRetriever:
 
 
 TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
-STOPWORDS = {
-    "a",
-    "an",
-    "and",
-    "are",
-    "at",
-    "be",
-    "by",
-    "for",
-    "from",
-    "how",
-    "i",
-    "is",
-    "me",
-    "of",
-    "on",
-    "or",
-    "please",
-    "the",
-    "to",
-    "us",
-    "what",
-    "when",
-    "where",
-    "who",
-    "why",
-    "you",
-}
 
 
 def _tokenize(text: str) -> list[str]:
@@ -140,6 +117,36 @@ def _lexical_similarity(query: str, chunk_text: str) -> float:
 
 def _hybrid_similarity(query: str, query_embedding: list[float], chunk: DocumentChunk) -> float:
     """hybrid similarity."""
-    lexical = _lexical_similarity(query=query, chunk_text=chunk.text)
+    lexical = _lexical_similarity(query=query, chunk_text=_searchable_chunk_text(chunk))
     semantic = _cosine_similarity(query_embedding, chunk.embedding)
     return (lexical * 0.9) + (semantic * 0.1)
+
+
+def _parse_metadata(raw_metadata: str | None) -> dict[str, object]:
+    """Parse chunk metadata from JSON; tolerate malformed rows."""
+    if raw_metadata is None:
+        return {}
+    try:
+        parsed = json.loads(raw_metadata)
+    except json.JSONDecodeError:
+        return {}
+    if isinstance(parsed, dict):
+        return parsed
+    return {}
+
+
+def _searchable_chunk_text(chunk: DocumentChunk) -> str:
+    """Compose searchable text using chunk content plus metadata context."""
+    parts = [chunk.text]
+    title = chunk.metadata.get("title")
+    if isinstance(title, str) and title.strip():
+        parts.append(title.strip())
+
+    tags = chunk.metadata.get("tags")
+    if isinstance(tags, list):
+        parts.extend(str(tag).strip() for tag in tags if str(tag).strip())
+
+    section = chunk.metadata.get("section")
+    if isinstance(section, str) and section.strip():
+        parts.append(section.replace("_", " "))
+    return " ".join(parts)

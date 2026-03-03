@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from voice_triage.tts.piper import PiperClient
+from voice_triage.tts.piper import PiperClient, normalize_tts_text
 
 
 def _touch(path: Path) -> None:
@@ -42,6 +42,36 @@ def test_piper_synthesize_to_wav_success(monkeypatch: pytest.MonkeyPatch, tmp_pa
     synthesized = client.synthesize_to_wav("hello there", output_path)
 
     assert synthesized == output_path
+    assert synthesized.exists()
+
+
+def test_piper_synthesize_normalizes_uk_currency(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    bin_path = tmp_path / "piper"
+    model_path = tmp_path / "voice.onnx"
+    output_path = tmp_path / "speech.wav"
+    _touch(bin_path)
+    _touch(model_path)
+
+    def fake_run(
+        command: list[str],
+        input: str,
+        text: bool,
+        capture_output: bool,
+        check: bool,
+        timeout: float,
+    ) -> subprocess.CompletedProcess[str]:
+        assert "33 pounds and 50 pence" in input
+        output_index = command.index("--output_file") + 1
+        Path(command[output_index]).write_bytes(b"RIFF....WAVE")
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    client = PiperClient(str(bin_path), str(model_path))
+    synthesized = client.synthesize_to_wav("The fee is £33.50.", output_path)
+
     assert synthesized.exists()
 
 
@@ -92,3 +122,10 @@ def test_piper_synthesize_to_wav_timeout(monkeypatch: pytest.MonkeyPatch, tmp_pa
     client = PiperClient(str(bin_path), str(model_path), timeout_seconds=4.0)
     with pytest.raises(RuntimeError, match="timed out"):
         client.synthesize_to_wav("hello there", tmp_path / "speech.wav")
+
+
+def test_normalize_tts_text_handles_uk_currency_forms() -> None:
+    assert normalize_tts_text("Costs £33.") == "Costs 33 pounds."
+    assert normalize_tts_text("Price is £1.") == "Price is 1 pound."
+    assert normalize_tts_text("Deposit £0.50.") == "Deposit 50 pence."
+    assert normalize_tts_text("Fine £12.01.") == "Fine 12 pounds and 1 penny."

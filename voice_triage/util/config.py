@@ -55,6 +55,14 @@ class Settings:
     temp_file_retention_seconds: int
     temp_file_max_count: int
     max_transcript_chars: int
+    reindex_min_interval_seconds: int
+    rag_retrieval_top_k: int
+    rag_relevance_threshold: float
+    rag_focus_weight: float
+    rag_section_boost: float
+    rag_score_drop_threshold: float
+    rag_max_answer_chars: int
+    rag_boosted_sections: tuple[str, ...]
     web_vad_rms_threshold: float
     web_vad_abs_min_rms: float
     web_vad_speech_factor: float
@@ -93,6 +101,10 @@ def load_settings() -> Settings:
     whisper_threads_raw = os.getenv("WHISPERCPP_THREADS", "").strip()
     whisper_extra_args_raw = os.getenv("WHISPERCPP_EXTRA_ARGS", "").strip()
     byo_inference_url = _validate_byo_inference_url(os.getenv("VOICE_TRIAGE_BYO_INFERENCE_URL"))
+    rag_boosted_sections = _env_csv_tokens(
+        "VOICE_TRIAGE_RAG_BOOSTED_SECTIONS",
+        default=("summary", "key_points"),
+    )
 
     return Settings(
         project_root=project_root,
@@ -186,6 +198,24 @@ def load_settings() -> Settings:
         ),
         temp_file_max_count=_env_int("VOICE_TRIAGE_TEMP_FILE_MAX_COUNT", default=500, minimum=10),
         max_transcript_chars=_env_int("VOICE_TRIAGE_MAX_TRANSCRIPT_CHARS", default=4000, minimum=1),
+        reindex_min_interval_seconds=_env_int(
+            "VOICE_TRIAGE_REINDEX_MIN_INTERVAL_SECONDS", default=10, minimum=0
+        ),
+        rag_retrieval_top_k=_env_int("VOICE_TRIAGE_RAG_RETRIEVAL_TOP_K", default=6, minimum=1),
+        rag_relevance_threshold=_env_float(
+            "VOICE_TRIAGE_RAG_RELEVANCE_THRESHOLD",
+            default=0.2,
+            minimum=0.0,
+        ),
+        rag_focus_weight=_env_float("VOICE_TRIAGE_RAG_FOCUS_WEIGHT", default=0.55, minimum=0.0),
+        rag_section_boost=_env_float("VOICE_TRIAGE_RAG_SECTION_BOOST", default=0.06, minimum=0.0),
+        rag_score_drop_threshold=_env_float(
+            "VOICE_TRIAGE_RAG_SCORE_DROP_THRESHOLD",
+            default=0.18,
+            minimum=0.0,
+        ),
+        rag_max_answer_chars=_env_int("VOICE_TRIAGE_RAG_MAX_ANSWER_CHARS", default=280, minimum=80),
+        rag_boosted_sections=rag_boosted_sections,
         web_vad_rms_threshold=_env_float("VOICE_TRIAGE_WEB_VAD_RMS_THRESHOLD", 0.006, 0.0001),
         web_vad_abs_min_rms=_env_float("VOICE_TRIAGE_WEB_VAD_ABS_MIN_RMS", 0.0045, 0.0001),
         web_vad_speech_factor=_env_float("VOICE_TRIAGE_WEB_VAD_SPEECH_FACTOR", 2.2, 1.0),
@@ -376,3 +406,13 @@ def _env_float(name: str, default: float, minimum: float) -> float:
     if value < minimum:
         raise ValueError(f"Expected float >= {minimum}, got: {value}")
     return value
+
+
+def _env_csv_tokens(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    """Parse comma-separated env var values into normalized lowercase tokens."""
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+
+    tokens = tuple(token.strip().lower() for token in raw.split(",") if token.strip())
+    return tokens or default

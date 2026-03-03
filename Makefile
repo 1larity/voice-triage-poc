@@ -1,4 +1,4 @@
-.PHONY: sync format lint typecheck docstrings test demo web api web-lan web-ssl stop-web stop-api cert-dev build-index check
+.PHONY: sync format lint typecheck docstrings test demo web api web-lan web-ssl stop-web stop-api cert-dev build-index reindex check
 
 sync:
 	uv sync --dev
@@ -44,5 +44,8 @@ cert-dev:
 
 build-index:
 	uv run voice_triage build-index
+
+reindex:
+	uv run voice_triage reindex
 
 check: lint typecheck docstrings test

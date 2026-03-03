@@ -92,7 +92,13 @@ By default this includes `localhost`, `127.0.0.1`, and detected LAN IPv4 address
   - any additional `*.onnx` files in `.venv/tools/piper/models` appear in the web voice dropdown
   - default web voice can be set with `PIPER_DEFAULT_VOICE_ID` (defaults to `en_GB-alba-medium`)
 
-7. (Optional) Add local KB files under `./kb/*.md` or `./kb/*.txt`.
+7. (Optional) Add local knowledge base files under `./kb/*.md` or `./kb/*.txt`.
+
+Reindex knowledge base on demand (no restart required):
+
+```bash
+uv run voice_triage reindex
+```
 
 ## Run local website
 
@@ -135,6 +141,7 @@ Useful endpoints:
 - `POST /api/v1/session/{session_id}/turn/text` (pre-transcribed text)
 - `GET /api/v1/voices`
 - `GET /api/v1/config` (client runtime config, including VAD tuning)
+- `POST /api/v1/reindex` (rebuild RAG index from current `./kb`)
 - `POST /api/v1/session/{session_id}/voice`
 - `GET /api/v1/tts/{audio_id}`
 
@@ -169,6 +176,8 @@ Run MCP stdio server:
 ```bash
 uv run voice_triage mcp
 ```
+
+MCP also exposes `reindex_kb` for on-demand knowledge base refresh.
 
 If MCP SDK is missing, install optional dependency:
 
@@ -261,7 +270,8 @@ When BYO is unavailable, local RAG fallback is used automatically.
 
 ## Notes
 
-- If `./kb` has no indexed chunks, RAG answers with: `I don't have that information in the KB yet.`
+- If `./kb` has no indexed chunks, RAG answers with a clear fallback message asking the user to rephrase or ask about supported council service topics.
+- TTS normalizes UK currency values for more natural speech (for example `£33.50` becomes `33 pounds and 50 pence`).
 - Browser mic recording requires microphone permission for `localhost`.
 - If Piper is not configured, text responses still work and UI shows a TTS error message.
 - If LAN clients cannot connect, allow inbound TCP `8443` in Windows Firewall.
