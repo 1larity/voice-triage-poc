@@ -75,6 +75,65 @@ class ConversationEngine:
         "No problem. What would you like to ask next?",
         "Glad that helped. Anything else I can help with?",
     )
+    SPOKEN_NUMBER_TOKENS: frozenset[str] = frozenset(
+        {
+            "one",
+            "two",
+            "three",
+            "four",
+            "five",
+            "six",
+            "seven",
+            "eight",
+            "nine",
+            "ten",
+            "eleven",
+            "twelve",
+            "thirteen",
+            "fourteen",
+            "fifteen",
+            "sixteen",
+            "seventeen",
+            "eighteen",
+            "nineteen",
+            "twenty",
+            "thirty",
+            "forty",
+            "fifty",
+            "sixty",
+            "seventy",
+            "eighty",
+            "ninety",
+            "hundred",
+        }
+    )
+    ADDRESS_STREET_TOKENS: frozenset[str] = frozenset(
+        {
+            "street",
+            "st",
+            "road",
+            "rd",
+            "avenue",
+            "ave",
+            "lane",
+            "ln",
+            "close",
+            "cl",
+            "drive",
+            "dr",
+            "place",
+            "pl",
+            "court",
+            "ct",
+            "way",
+            "terrace",
+            "crescent",
+            "grove",
+            "gardens",
+            "parade",
+            "hill",
+        }
+    )
 
     def __init__(
         self,
@@ -470,8 +529,8 @@ class ConversationEngine:
             outcome=outcome,
         )
 
-    @staticmethod
-    def _extract_address_candidate(text: str, extraction: ExtractionResult) -> str | None:
+    @classmethod
+    def _extract_address_candidate(cls, text: str, extraction: ExtractionResult) -> str | None:
         """extract address candidate."""
         candidate = extraction.address_line or text
         normalized = " ".join(candidate.split()).strip(" ,.-")
@@ -481,6 +540,10 @@ class ConversationEngine:
         has_number = any(char.isdigit() for char in normalized)
         has_alpha = any(char.isalpha() for char in normalized)
         has_postcode = extraction.postcode is not None
+        tokens = cls._normalized_tokens(normalized)
+        has_spoken_number = any(token in cls.SPOKEN_NUMBER_TOKENS for token in tokens)
+        has_street_hint = any(token in cls.ADDRESS_STREET_TOKENS for token in tokens)
+        has_spoken_number_address = has_spoken_number and has_street_hint
         lowered = normalized.lower()
         invalid_phrases = {
             "not sure",
@@ -494,7 +557,9 @@ class ConversationEngine:
         if lowered in invalid_phrases:
             return None
 
-        if not ((has_alpha and has_number) or has_postcode):
+        if not (
+            (has_alpha and has_number) or has_postcode or (has_alpha and has_spoken_number_address)
+        ):
             return None
         return normalized
 

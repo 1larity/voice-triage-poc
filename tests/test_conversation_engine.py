@@ -148,3 +148,29 @@ def test_move_flow_rejects_address_without_house_number() -> None:
 
     assert result.stage == ConversationStage.ASK_CURRENT_ADDRESS
     assert "current address" in result.response_text.lower()
+
+
+def test_move_flow_accepts_spoken_house_number_without_digits() -> None:
+    engine = ConversationEngine(extractor=HeuristicExtractor(), rag_service=FakeRagService())
+    session_id, _ = engine.create_session()
+
+    engine.process_turn(session_id=session_id, transcript="I'm moving house")
+    confirm = engine.process_turn(session_id=session_id, transcript="twelve old street")
+
+    assert confirm.stage == ConversationStage.CONFIRM_CURRENT_ADDRESS
+    assert "is that correct" in confirm.response_text.lower()
+
+    follow_up = engine.process_turn(session_id=session_id, transcript="yes")
+    assert follow_up.stage == ConversationStage.ASK_CURRENT_POSTCODE
+    assert "current postcode" in follow_up.response_text.lower()
+
+
+def test_move_flow_rejects_spoken_number_without_address_structure() -> None:
+    engine = ConversationEngine(extractor=HeuristicExtractor(), rag_service=FakeRagService())
+    session_id, _ = engine.create_session()
+
+    engine.process_turn(session_id=session_id, transcript="I'm moving house")
+    result = engine.process_turn(session_id=session_id, transcript="one thing maybe")
+
+    assert result.stage == ConversationStage.ASK_CURRENT_ADDRESS
+    assert "current address" in result.response_text.lower()
