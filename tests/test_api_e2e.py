@@ -92,3 +92,41 @@ def test_rest_api_rejects_oversized_audio_upload(
 
     assert turn_response.status_code == 413
     assert "exceeds max allowed size" in turn_response.text
+
+
+def test_rest_api_rejects_too_long_transcript(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _configure_test_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("VOICE_TRIAGE_MAX_TRANSCRIPT_CHARS", "32")
+
+    client = TestClient(create_rest_app())
+    create_response = client.post("/api/v1/session")
+    session_id = create_response.json()["session_id"]
+
+    long_text = "a" * 100
+    turn_response = client.post(
+        f"/api/v1/session/{session_id}/turn/text",
+        json={"transcript": long_text},
+    )
+
+    assert turn_response.status_code == 422
+    assert "exceeds max length" in turn_response.text
+
+
+def test_rest_api_rejects_non_alphanumeric_transcript(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _configure_test_env(monkeypatch, tmp_path)
+
+    client = TestClient(create_rest_app())
+    create_response = client.post("/api/v1/session")
+    session_id = create_response.json()["session_id"]
+
+    turn_response = client.post(
+        f"/api/v1/session/{session_id}/turn/text",
+        json={"transcript": ".... !!! ???"},
+    )
+
+    assert turn_response.status_code == 422
+    assert "alphanumeric" in turn_response.text

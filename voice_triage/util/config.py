@@ -54,6 +54,7 @@ class Settings:
     max_audio_upload_bytes: int
     temp_file_retention_seconds: int
     temp_file_max_count: int
+    max_transcript_chars: int
     sample_rate: int = 16_000
     channels: int = 1
 
@@ -177,6 +178,7 @@ def load_settings() -> Settings:
             "VOICE_TRIAGE_TEMP_FILE_RETENTION_SECONDS", default=4 * 60 * 60, minimum=60
         ),
         temp_file_max_count=_env_int("VOICE_TRIAGE_TEMP_FILE_MAX_COUNT", default=500, minimum=10),
+        max_transcript_chars=_env_int("VOICE_TRIAGE_MAX_TRANSCRIPT_CHARS", default=4000, minimum=1),
     )
 
 

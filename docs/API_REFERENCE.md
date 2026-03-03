@@ -117,7 +117,7 @@ Returns:
 
 Common status codes:
 - `404` unknown session or voice id
-- `422` empty transcript
+- `422` invalid transcript (empty, too long, or missing alphanumeric content)
 - `503` ASR unavailable (`whisper.cpp` missing/unconfigured)
 - `500` internal subprocess/runtime failure
 
