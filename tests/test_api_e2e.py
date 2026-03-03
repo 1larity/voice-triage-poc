@@ -72,3 +72,23 @@ def test_rest_api_session_text_turn_voice_and_tts_routes(
     tts_fetch_response = client.get(f"/api/v1/tts/{audio_id}")
     assert tts_fetch_response.status_code == 200
     assert tts_fetch_response.headers["content-type"] == "audio/wav"
+
+
+def test_rest_api_rejects_oversized_audio_upload(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _configure_test_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("VOICE_TRIAGE_MAX_AUDIO_UPLOAD_BYTES", "128")
+
+    client = TestClient(create_rest_app())
+    create_response = client.post("/api/v1/session")
+    session_id = create_response.json()["session_id"]
+
+    audio_bytes = b"RIFF" + (b"\x00" * 2048)
+    turn_response = client.post(
+        f"/api/v1/session/{session_id}/turn",
+        files={"audio": ("turn.wav", audio_bytes, "audio/wav")},
+    )
+
+    assert turn_response.status_code == 413
+    assert "exceeds max allowed size" in turn_response.text

@@ -48,6 +48,7 @@ class Settings:
     piper_default_voice_id: str | None
     web_ssl_certfile: str | None
     web_ssl_keyfile: str | None
+    max_audio_upload_bytes: int
     sample_rate: int = 16_000
     channels: int = 1
 
@@ -158,6 +159,9 @@ def load_settings() -> Settings:
                 project_root=project_root,
                 fallback_to_existing_default=True,
             )
+        ),
+        max_audio_upload_bytes=_env_int(
+            "VOICE_TRIAGE_MAX_AUDIO_UPLOAD_BYTES", default=10 * 1024 * 1024, minimum=1
         ),
     )
 

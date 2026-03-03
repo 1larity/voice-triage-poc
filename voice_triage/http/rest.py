@@ -364,16 +364,37 @@ def create_rest_app() -> FastAPI:
 
 async def _write_turn_audio(audio: UploadFile, settings: Settings, session_id: str) -> Path:
     """write turn audio."""
-    content = await audio.read()
-    if not content:
-        raise HTTPException(status_code=400, detail="Empty audio payload")
-
     audio_dir = settings.data_dir / "tmp_audio"
     audio_dir.mkdir(parents=True, exist_ok=True)
     suffix = ".wav"
     filename = f"web_{session_id}_{uuid.uuid4().hex[:8]}{suffix}"
     wav_path = audio_dir / filename
-    wav_path.write_bytes(content)
+
+    total_bytes = 0
+    has_content = False
+    with wav_path.open("wb") as output:
+        while True:
+            chunk = await audio.read(1024 * 1024)
+            if not chunk:
+                break
+            has_content = True
+            total_bytes += len(chunk)
+            if total_bytes > settings.max_audio_upload_bytes:
+                output.close()
+                wav_path.unlink(missing_ok=True)
+                raise HTTPException(
+                    status_code=413,
+                    detail=(
+                        "Audio payload exceeds max allowed size: "
+                        f"{settings.max_audio_upload_bytes} bytes"
+                    ),
+                )
+            output.write(chunk)
+
+    if not has_content:
+        wav_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail="Empty audio payload")
+
     return wav_path
 
 
