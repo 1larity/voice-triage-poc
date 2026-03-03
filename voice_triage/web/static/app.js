@@ -569,11 +569,21 @@ voiceSelect.addEventListener("change", async () => {
 });
 
 async function initializeUi() {
+  let configError = null;
   try {
     await loadClientConfig();
+  } catch (error) {
+    state.vad = { ...DEFAULT_VAD_CONFIG };
+    configError = error;
+  }
+
+  try {
     await loadVoices();
     updateCapturedDataBox(null);
     setStatus("Ready. Click Start Listening.");
+    if (configError) {
+      addMessage("system", `Client config unavailable, using defaults: ${configError}`);
+    }
   } catch (error) {
     addMessage("system", `Failed to initialize session: ${error}`);
   }
