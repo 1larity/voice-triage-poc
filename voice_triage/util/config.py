@@ -276,7 +276,7 @@ def _validate_byo_inference_url(raw_url: str | None) -> str | None:
     parsed = urlsplit(cleaned)
     if parsed.scheme not in {"http", "https"}:
         raise ValueError("VOICE_TRIAGE_BYO_INFERENCE_URL must use http:// or https:// scheme.")
-    if not parsed.netloc:
+    if not parsed.hostname:
         raise ValueError("VOICE_TRIAGE_BYO_INFERENCE_URL must include a host.")
     return cleaned
 

@@ -135,3 +135,13 @@ def test_validate_byo_inference_url_rejects_non_http_scheme() -> None:
 def test_validate_byo_inference_url_rejects_missing_host() -> None:
     with pytest.raises(ValueError, match="include a host"):
         _validate_byo_inference_url("http:///infer")
+
+
+def test_validate_byo_inference_url_rejects_empty_hostname_with_port() -> None:
+    with pytest.raises(ValueError, match="include a host"):
+        _validate_byo_inference_url("http://:11434/v1")
+
+
+def test_validate_byo_inference_url_rejects_userinfo_without_host() -> None:
+    with pytest.raises(ValueError, match="include a host"):
+        _validate_byo_inference_url("http://user@/path")
