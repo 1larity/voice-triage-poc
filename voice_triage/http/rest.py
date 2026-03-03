@@ -477,17 +477,25 @@ def _cleanup_temp_directory(directory: Path, retention_seconds: int, max_count: 
 
     cutoff_epoch = time.time() - retention_seconds
     for candidate in directory.glob("*"):
-        if not candidate.is_file():
-            continue
         try:
+            if not candidate.is_file():
+                continue
             if candidate.stat().st_mtime < cutoff_epoch:
                 candidate.unlink(missing_ok=True)
         except OSError:
             continue
 
-    files = [item for item in directory.glob("*") if item.is_file()]
-    files.sort(key=lambda item: item.stat().st_mtime, reverse=True)
-    for stale in files[max_count:]:
+    files_with_mtime: list[tuple[Path, float]] = []
+    for item in directory.glob("*"):
+        try:
+            if not item.is_file():
+                continue
+            files_with_mtime.append((item, item.stat().st_mtime))
+        except OSError:
+            continue
+
+    files_with_mtime.sort(key=lambda item: item[1], reverse=True)
+    for stale, _ in files_with_mtime[max_count:]:
         try:
             stale.unlink(missing_ok=True)
         except OSError:
