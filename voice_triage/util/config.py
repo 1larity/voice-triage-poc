@@ -52,6 +52,8 @@ class Settings:
     web_ssl_certfile: str | None
     web_ssl_keyfile: str | None
     max_audio_upload_bytes: int
+    temp_file_retention_seconds: int
+    temp_file_max_count: int
     sample_rate: int = 16_000
     channels: int = 1
 
@@ -171,6 +173,10 @@ def load_settings() -> Settings:
         max_audio_upload_bytes=_env_int(
             "VOICE_TRIAGE_MAX_AUDIO_UPLOAD_BYTES", default=10 * 1024 * 1024, minimum=1
         ),
+        temp_file_retention_seconds=_env_int(
+            "VOICE_TRIAGE_TEMP_FILE_RETENTION_SECONDS", default=4 * 60 * 60, minimum=60
+        ),
+        temp_file_max_count=_env_int("VOICE_TRIAGE_TEMP_FILE_MAX_COUNT", default=500, minimum=10),
     )
 
 
