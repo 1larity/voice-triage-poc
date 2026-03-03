@@ -266,6 +266,7 @@ def initialize_runtime(settings: Settings | None = None) -> ApiRuntime:
         gpu_layers=resolved_settings.whispercpp_gpu_layers,
         threads=resolved_settings.whispercpp_threads,
         extra_args=resolved_settings.whispercpp_extra_args,
+        timeout_seconds=resolved_settings.whispercpp_timeout_seconds,
     )
     tts_client = PiperClient(resolved_settings.piper_bin, resolved_settings.piper_model)
     available_voices, default_voice_id = _discover_piper_voices(

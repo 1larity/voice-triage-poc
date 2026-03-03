@@ -42,6 +42,7 @@ def run_demo() -> int:
         gpu_layers=settings.whispercpp_gpu_layers,
         threads=settings.whispercpp_threads,
         extra_args=settings.whispercpp_extra_args,
+        timeout_seconds=settings.whispercpp_timeout_seconds,
     )
     extractor = HeuristicExtractor()
     rag_service = create_rag_service(settings)
