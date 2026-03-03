@@ -36,6 +36,12 @@ def test_rest_api_session_text_turn_voice_and_tts_routes(
     data_dir = _configure_test_env(monkeypatch, tmp_path)
     client = TestClient(create_rest_app())
 
+    config_response = client.get("/api/v1/config")
+    assert config_response.status_code == 200
+    config_payload = config_response.json()
+    assert config_payload["vad_rms_threshold"] > 0
+    assert config_payload["vad_max_turn_ms"] >= 1000
+
     create_response = client.post("/api/v1/session")
     assert create_response.status_code == 200
     create_payload = create_response.json()

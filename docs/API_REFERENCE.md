@@ -47,6 +47,12 @@ Response:
 }
 ```
 
+## Client Config
+
+`GET /api/v1/config`
+
+Returns frontend runtime tuning values (including VAD thresholds and turn timing).
+
 ## Select Voice
 
 `POST /api/v1/session/{session_id}/voice`

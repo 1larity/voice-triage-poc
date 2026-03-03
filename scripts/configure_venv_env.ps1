@@ -21,6 +21,13 @@ param(
     [double]$PiperTimeoutSeconds = 30.0,
     [string]$SslCertFile = "",
     [string]$SslKeyFile = "",
+    [double]$WebVadRmsThreshold = 0.006,
+    [double]$WebVadAbsMinRms = 0.0045,
+    [double]$WebVadSpeechFactor = 2.2,
+    [double]$WebVadNoiseAlpha = 0.96,
+    [int]$WebVadMinSpeechMs = 180,
+    [int]$WebVadSilenceHoldMs = 1000,
+    [int]$WebVadMaxTurnMs = 30000,
     [string]$WebHost = "0.0.0.0",
     [int]$WebPort = 8443
 )
@@ -128,6 +135,13 @@ $content = @(
     "PIPER_TIMEOUT_SECONDS=$PiperTimeoutSeconds"
     "VOICE_TRIAGE_SSL_CERTFILE=$SslCertFile"
     "VOICE_TRIAGE_SSL_KEYFILE=$SslKeyFile"
+    "VOICE_TRIAGE_WEB_VAD_RMS_THRESHOLD=$WebVadRmsThreshold"
+    "VOICE_TRIAGE_WEB_VAD_ABS_MIN_RMS=$WebVadAbsMinRms"
+    "VOICE_TRIAGE_WEB_VAD_SPEECH_FACTOR=$WebVadSpeechFactor"
+    "VOICE_TRIAGE_WEB_VAD_NOISE_ALPHA=$WebVadNoiseAlpha"
+    "VOICE_TRIAGE_WEB_VAD_MIN_SPEECH_MS=$WebVadMinSpeechMs"
+    "VOICE_TRIAGE_WEB_VAD_SILENCE_HOLD_MS=$WebVadSilenceHoldMs"
+    "VOICE_TRIAGE_WEB_VAD_MAX_TURN_MS=$WebVadMaxTurnMs"
     "VOICE_TRIAGE_WEB_HOST=$WebHost"
     "VOICE_TRIAGE_WEB_PORT=$WebPort"
 )

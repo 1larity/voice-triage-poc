@@ -68,6 +68,18 @@ class TextTurnRequest(BaseModel):
     transcript: str
 
 
+class ClientConfigResponse(BaseModel):
+    """Clientconfigresponse."""
+
+    vad_rms_threshold: float
+    vad_abs_min_rms: float
+    vad_speech_factor: float
+    vad_noise_alpha: float
+    vad_min_speech_ms: int
+    vad_silence_hold_ms: int
+    vad_max_turn_ms: int
+
+
 class TurnResponse(BaseModel):
     """Turnresponse."""
 
@@ -159,6 +171,19 @@ class TriageApi:
             session_id=session_id,
             voice_id=voice_id,
             label=_voice_label_from_path(selected_path),
+        )
+
+    def get_client_config(self) -> ClientConfigResponse:
+        """Return client-side runtime configuration values."""
+        settings = self.runtime.settings
+        return ClientConfigResponse(
+            vad_rms_threshold=settings.web_vad_rms_threshold,
+            vad_abs_min_rms=settings.web_vad_abs_min_rms,
+            vad_speech_factor=settings.web_vad_speech_factor,
+            vad_noise_alpha=settings.web_vad_noise_alpha,
+            vad_min_speech_ms=settings.web_vad_min_speech_ms,
+            vad_silence_hold_ms=settings.web_vad_silence_hold_ms,
+            vad_max_turn_ms=settings.web_vad_max_turn_ms,
         )
 
     def process_transcript_turn(self, session_id: str, transcript: str) -> TurnResponse:
@@ -322,6 +347,11 @@ def create_api_router(
     def list_voices() -> VoiceListResponse:
         """List voices."""
         return api.list_voices()
+
+    @router.get("/config", response_model=ClientConfigResponse, include_in_schema=include_in_schema)
+    def get_client_config() -> ClientConfigResponse:
+        """Get client config."""
+        return api.get_client_config()
 
     @router.post(
         "/session/{session_id}/voice",

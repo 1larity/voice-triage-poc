@@ -16,19 +16,22 @@ const state = {
   lastSpeechAtMs: null,
   recordingStartedAtMs: null,
   noiseFloorRms: 0.002,
+  vad: null,
   continuousMode: false,
   ttsAudio: null,
   selectedVoiceId: null,
 };
 const API_BASE = "/api/v1";
-
-const VAD_RMS_THRESHOLD = 0.006;
-const VAD_MIN_SPEECH_MS = 180;
-const VAD_SILENCE_HOLD_MS = 1000;
-const VAD_MAX_TURN_MS = 30000;
-const VAD_ABS_MIN_RMS = 0.0045;
-const VAD_SPEECH_FACTOR = 2.2;
-const VAD_NOISE_ALPHA = 0.96;
+const DEFAULT_VAD_CONFIG = {
+  vad_rms_threshold: 0.006,
+  vad_abs_min_rms: 0.0045,
+  vad_speech_factor: 2.2,
+  vad_noise_alpha: 0.96,
+  vad_min_speech_ms: 180,
+  vad_silence_hold_ms: 1000,
+  vad_max_turn_ms: 30000,
+};
+state.vad = { ...DEFAULT_VAD_CONFIG };
 
 const chatLog = document.getElementById("chatLog");
 const statusText = document.getElementById("statusText");
@@ -113,6 +116,18 @@ async function loadVoices() {
   state.selectedVoiceId = payload.default_voice_id || payload.voices[0].voice_id;
   voiceSelect.value = state.selectedVoiceId;
   voiceSelect.disabled = false;
+}
+
+async function loadClientConfig() {
+  const response = await fetch(`${API_BASE}/config`);
+  if (!response.ok) {
+    throw new Error(`Failed to load client config (${response.status})`);
+  }
+  const payload = await response.json();
+  state.vad = {
+    ...DEFAULT_VAD_CONFIG,
+    ...payload,
+  };
 }
 
 async function setSessionVoice(voiceId, options = {}) {
@@ -267,9 +282,9 @@ function handleVadFrame(channelData, sampleRate) {
   const frameDurationMs = (channelData.length / Math.max(1, sampleRate)) * 1000;
   const rms = computeRms(channelData);
   const adaptiveThreshold = Math.max(
-    VAD_ABS_MIN_RMS,
-    VAD_RMS_THRESHOLD,
-    state.noiseFloorRms * VAD_SPEECH_FACTOR,
+    state.vad.vad_abs_min_rms,
+    state.vad.vad_rms_threshold,
+    state.noiseFloorRms * state.vad.vad_speech_factor,
   );
   const isSpeechFrame = rms >= adaptiveThreshold;
 
@@ -278,16 +293,17 @@ function handleVadFrame(channelData, sampleRate) {
     if (state.speechStartedAtMs === null) {
       state.speechStartedAtMs = nowMs;
     }
-    if (!state.speechDetected && nowMs - state.speechStartedAtMs >= VAD_MIN_SPEECH_MS) {
+    if (!state.speechDetected && nowMs - state.speechStartedAtMs >= state.vad.vad_min_speech_ms) {
       state.speechDetected = true;
       setStatus("Listening...");
     }
   } else if (!state.speechDetected) {
-    state.noiseFloorRms = VAD_NOISE_ALPHA * state.noiseFloorRms + (1 - VAD_NOISE_ALPHA) * rms;
+    state.noiseFloorRms =
+      state.vad.vad_noise_alpha * state.noiseFloorRms + (1 - state.vad.vad_noise_alpha) * rms;
     state.speechStartedAtMs = null;
     if (
       state.recordingStartedAtMs !== null &&
-      nowMs - state.recordingStartedAtMs > VAD_MAX_TURN_MS
+      nowMs - state.recordingStartedAtMs > state.vad.vad_max_turn_ms
     ) {
       setStatus("Processing turn...");
       requestStopRecording("max_turn_no_speech");
@@ -298,7 +314,7 @@ function handleVadFrame(channelData, sampleRate) {
   if (
     state.speechDetected &&
     state.lastSpeechAtMs !== null &&
-    nowMs - state.lastSpeechAtMs >= VAD_SILENCE_HOLD_MS
+    nowMs - state.lastSpeechAtMs >= state.vad.vad_silence_hold_ms
   ) {
     setStatus("Silence detected. Processing...");
     requestStopRecording("vad_silence");
@@ -308,7 +324,7 @@ function handleVadFrame(channelData, sampleRate) {
   if (
     state.speechDetected &&
     state.recordingStartedAtMs !== null &&
-    nowMs - state.recordingStartedAtMs + frameDurationMs >= VAD_MAX_TURN_MS
+    nowMs - state.recordingStartedAtMs + frameDurationMs >= state.vad.vad_max_turn_ms
   ) {
     setStatus("Processing long turn...");
     requestStopRecording("max_turn");
@@ -554,6 +570,7 @@ voiceSelect.addEventListener("change", async () => {
 
 async function initializeUi() {
   try {
+    await loadClientConfig();
     await loadVoices();
     updateCapturedDataBox(null);
     setStatus("Ready. Click Start Listening.");
