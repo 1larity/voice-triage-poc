@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -371,6 +372,11 @@ async def _write_turn_audio(audio: UploadFile, settings: Settings, session_id: s
     """write turn audio."""
     audio_dir = settings.data_dir / "tmp_audio"
     audio_dir.mkdir(parents=True, exist_ok=True)
+    _cleanup_temp_directory(
+        audio_dir,
+        retention_seconds=settings.temp_file_retention_seconds,
+        max_count=settings.temp_file_max_count,
+    )
     suffix = ".wav"
     filename = f"web_{session_id}_{uuid.uuid4().hex[:8]}{suffix}"
     wav_path = audio_dir / filename
@@ -413,10 +419,39 @@ def _synthesize_tts(
     """synthesize tts."""
     tts_dir = settings.data_dir / "tmp_tts"
     tts_dir.mkdir(parents=True, exist_ok=True)
+    _cleanup_temp_directory(
+        tts_dir,
+        retention_seconds=settings.temp_file_retention_seconds,
+        max_count=settings.temp_file_max_count,
+    )
     audio_id = f"{session_id}_{uuid.uuid4().hex[:8]}"
     output_wav = tts_dir / f"{audio_id}.wav"
     client.synthesize_to_wav(text=text, output_path=output_wav, model_path=model_path)
     return audio_id
+
+
+def _cleanup_temp_directory(directory: Path, retention_seconds: int, max_count: int) -> None:
+    """Delete stale and excess files in a temp directory."""
+    if not directory.exists():
+        return
+
+    cutoff_epoch = time.time() - retention_seconds
+    for candidate in directory.glob("*"):
+        if not candidate.is_file():
+            continue
+        try:
+            if candidate.stat().st_mtime < cutoff_epoch:
+                candidate.unlink(missing_ok=True)
+        except OSError:
+            continue
+
+    files = [item for item in directory.glob("*") if item.is_file()]
+    files.sort(key=lambda item: item.stat().st_mtime, reverse=True)
+    for stale in files[max_count:]:
+        try:
+            stale.unlink(missing_ok=True)
+        except OSError:
+            continue
 
 
 def _discover_piper_voices(
