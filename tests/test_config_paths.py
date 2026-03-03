@@ -1,11 +1,14 @@
 import os
 from pathlib import Path
 
+import pytest
+
 from voice_triage.util.config import (
     _default_piper_bin,
     _default_whisper_bin,
     _resolve_config_path,
     _should_override_stale_path_env,
+    _validate_byo_inference_url,
 )
 
 
@@ -117,3 +120,18 @@ def test_default_whisper_bin_prefers_release_or_build_layout(tmp_path: Path) -> 
     selected = _default_whisper_bin(venv_dir)
 
     assert selected == preferred
+
+
+def test_validate_byo_inference_url_allows_http_and_https() -> None:
+    assert _validate_byo_inference_url("http://127.0.0.1:11434/v1/chat/completions")
+    assert _validate_byo_inference_url("https://example.com/infer")
+
+
+def test_validate_byo_inference_url_rejects_non_http_scheme() -> None:
+    with pytest.raises(ValueError, match="http:// or https://"):
+        _validate_byo_inference_url("file:///tmp/infer")
+
+
+def test_validate_byo_inference_url_rejects_missing_host() -> None:
+    with pytest.raises(ValueError, match="include a host"):
+        _validate_byo_inference_url("http:///infer")

@@ -6,6 +6,7 @@ import os
 import shlex
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 _PATH_LIKE_ENV_KEYS = {
     "VOICE_TRIAGE_DB",
@@ -81,6 +82,7 @@ def load_settings() -> Settings:
     ssl_key_default = venv_dir / "certs" / "dev-key.pem"
     whisper_threads_raw = os.getenv("WHISPERCPP_THREADS", "").strip()
     whisper_extra_args_raw = os.getenv("WHISPERCPP_EXTRA_ARGS", "").strip()
+    byo_inference_url = _validate_byo_inference_url(os.getenv("VOICE_TRIAGE_BYO_INFERENCE_URL"))
 
     return Settings(
         project_root=project_root,
@@ -124,7 +126,7 @@ def load_settings() -> Settings:
             "WHISPERCPP_TIMEOUT_SECONDS", default=45.0, minimum=1.0
         ),
         inference_backend=os.getenv("VOICE_TRIAGE_INFERENCE_BACKEND", "local"),
-        byo_inference_url=os.getenv("VOICE_TRIAGE_BYO_INFERENCE_URL"),
+        byo_inference_url=byo_inference_url,
         byo_inference_timeout_seconds=_env_float(
             "VOICE_TRIAGE_BYO_INFERENCE_TIMEOUT_SECONDS", default=12.0, minimum=0.1
         ),
@@ -239,6 +241,22 @@ def _resolve_path(path_value: Path, project_root: Path) -> Path:
     if expanded.is_absolute():
         return expanded.resolve(strict=False)
     return (project_root / expanded).resolve(strict=False)
+
+
+def _validate_byo_inference_url(raw_url: str | None) -> str | None:
+    """Validate BYO inference URL format (scheme and host) when configured."""
+    if raw_url is None:
+        return None
+    cleaned = raw_url.strip()
+    if not cleaned:
+        return None
+
+    parsed = urlsplit(cleaned)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("VOICE_TRIAGE_BYO_INFERENCE_URL must use http:// or https:// scheme.")
+    if not parsed.netloc:
+        raise ValueError("VOICE_TRIAGE_BYO_INFERENCE_URL must include a host.")
+    return cleaned
 
 
 def _default_whisper_bin(venv_dir: Path) -> Path:
