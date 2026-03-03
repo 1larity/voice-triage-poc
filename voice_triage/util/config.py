@@ -55,6 +55,13 @@ class Settings:
     temp_file_retention_seconds: int
     temp_file_max_count: int
     max_transcript_chars: int
+    web_vad_rms_threshold: float
+    web_vad_abs_min_rms: float
+    web_vad_speech_factor: float
+    web_vad_noise_alpha: float
+    web_vad_min_speech_ms: int
+    web_vad_silence_hold_ms: int
+    web_vad_max_turn_ms: int
     sample_rate: int = 16_000
     channels: int = 1
 
@@ -179,6 +186,13 @@ def load_settings() -> Settings:
         ),
         temp_file_max_count=_env_int("VOICE_TRIAGE_TEMP_FILE_MAX_COUNT", default=500, minimum=10),
         max_transcript_chars=_env_int("VOICE_TRIAGE_MAX_TRANSCRIPT_CHARS", default=4000, minimum=1),
+        web_vad_rms_threshold=_env_float("VOICE_TRIAGE_WEB_VAD_RMS_THRESHOLD", 0.006, 0.0001),
+        web_vad_abs_min_rms=_env_float("VOICE_TRIAGE_WEB_VAD_ABS_MIN_RMS", 0.0045, 0.0001),
+        web_vad_speech_factor=_env_float("VOICE_TRIAGE_WEB_VAD_SPEECH_FACTOR", 2.2, 1.0),
+        web_vad_noise_alpha=_env_float("VOICE_TRIAGE_WEB_VAD_NOISE_ALPHA", 0.96, 0.5),
+        web_vad_min_speech_ms=_env_int("VOICE_TRIAGE_WEB_VAD_MIN_SPEECH_MS", 180, 50),
+        web_vad_silence_hold_ms=_env_int("VOICE_TRIAGE_WEB_VAD_SILENCE_HOLD_MS", 1000, 100),
+        web_vad_max_turn_ms=_env_int("VOICE_TRIAGE_WEB_VAD_MAX_TURN_MS", 30000, 1000),
     )
 
 

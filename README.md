@@ -134,6 +134,7 @@ Useful endpoints:
 - `POST /api/v1/session/{session_id}/turn` (audio upload)
 - `POST /api/v1/session/{session_id}/turn/text` (pre-transcribed text)
 - `GET /api/v1/voices`
+- `GET /api/v1/config` (client runtime config, including VAD tuning)
 - `POST /api/v1/session/{session_id}/voice`
 - `GET /api/v1/tts/{audio_id}`
 
