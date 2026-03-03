@@ -64,6 +64,9 @@ VOICE_TRIAGE_BYO_API_KEY=
 VOICE_TRIAGE_BYO_SYSTEM_PROMPT=You are a concise UK council support assistant.
 ```
 
+Validation note:
+- `VOICE_TRIAGE_BYO_INFERENCE_URL` must be an `http://` or `https://` URL with a host.
+
 Request (`POST`):
 
 ```json
