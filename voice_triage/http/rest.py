@@ -166,9 +166,19 @@ class TriageApi:
         if session_id not in self.runtime.engine.sessions:
             raise HTTPException(status_code=404, detail="Unknown session id")
 
-        cleaned = transcript.strip()
+        cleaned = " ".join(transcript.split()).strip()
         if not cleaned:
             raise HTTPException(status_code=422, detail="Empty transcript text")
+        if len(cleaned) > self.runtime.settings.max_transcript_chars:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "Transcript exceeds max length "
+                    f"({self.runtime.settings.max_transcript_chars} characters)"
+                ),
+            )
+        if not any(character.isalnum() for character in cleaned):
+            raise HTTPException(status_code=422, detail="Transcript must include alphanumeric text")
 
         turn_result = self.runtime.engine.process_turn(session_id=session_id, transcript=cleaned)
 
