@@ -178,3 +178,28 @@ def test_rest_api_reindex_rate_limit_returns_429(
     second = client.post("/api/v1/reindex")
     assert second.status_code == 429
     assert "Retry-After" in second.headers
+
+
+def test_rest_api_reindex_runtime_conflict_maps_to_409(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _configure_test_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("VOICE_TRIAGE_REINDEX_MIN_INTERVAL_SECONDS", "60")
+
+    client = TestClient(create_rest_app())
+
+    import voice_triage.rag.index as rag_index
+
+    original_build_index = rag_index.build_index
+
+    def _raise_in_progress(*args: object, **kwargs: object) -> int:
+        raise RuntimeError("Reindex already in progress. Please wait and retry.")
+
+    monkeypatch.setattr(rag_index, "build_index", _raise_in_progress)
+    conflict = client.post("/api/v1/reindex")
+    assert conflict.status_code == 409
+    assert "already in progress" in conflict.text.lower()
+
+    monkeypatch.setattr(rag_index, "build_index", original_build_index)
+    success = client.post("/api/v1/reindex")
+    assert success.status_code == 200

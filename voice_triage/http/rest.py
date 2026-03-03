@@ -219,7 +219,6 @@ class TriageApi:
                     ),
                     headers={"Retry-After": str(retry_after)},
                 )
-            self.runtime.last_reindex_started_at = now
 
             kb_dir = self.runtime.settings.kb_dir
             kb_dir.mkdir(parents=True, exist_ok=True)
@@ -228,7 +227,14 @@ class TriageApi:
                 for path in kb_dir.rglob("*")
                 if path.is_file() and path.suffix.lower() in {".md", ".txt"}
             )
-            chunk_count = build_index(kb_dir, self.runtime.settings.rag_index_path)
+            try:
+                chunk_count = build_index(kb_dir, self.runtime.settings.rag_index_path)
+            except RuntimeError as exc:
+                lowered = str(exc).lower()
+                if "already in progress" in lowered:
+                    raise HTTPException(status_code=409, detail=str(exc)) from exc
+                raise HTTPException(status_code=500, detail=str(exc)) from exc
+            self.runtime.last_reindex_started_at = time.monotonic()
         finally:
             self.runtime.reindex_lock.release()
 
