@@ -15,16 +15,20 @@ const state = {
   speechStartedAtMs: null,
   lastSpeechAtMs: null,
   recordingStartedAtMs: null,
+  noiseFloorRms: 0.002,
   continuousMode: false,
   ttsAudio: null,
   selectedVoiceId: null,
 };
 const API_BASE = "/api/v1";
 
-const VAD_RMS_THRESHOLD = 0.012;
+const VAD_RMS_THRESHOLD = 0.006;
 const VAD_MIN_SPEECH_MS = 180;
 const VAD_SILENCE_HOLD_MS = 1000;
 const VAD_MAX_TURN_MS = 30000;
+const VAD_ABS_MIN_RMS = 0.0045;
+const VAD_SPEECH_FACTOR = 2.2;
+const VAD_NOISE_ALPHA = 0.96;
 
 const chatLog = document.getElementById("chatLog");
 const statusText = document.getElementById("statusText");
@@ -189,6 +193,7 @@ async function startRecording() {
   state.speechStartedAtMs = null;
   state.lastSpeechAtMs = null;
   state.recordingStartedAtMs = performance.now();
+  state.noiseFloorRms = 0.002;
 
   state.processor.onaudioprocess = (event) => {
     const channelData = event.inputBuffer.getChannelData(0);
@@ -261,7 +266,12 @@ function handleVadFrame(channelData, sampleRate) {
   const nowMs = performance.now();
   const frameDurationMs = (channelData.length / Math.max(1, sampleRate)) * 1000;
   const rms = computeRms(channelData);
-  const isSpeechFrame = rms >= VAD_RMS_THRESHOLD;
+  const adaptiveThreshold = Math.max(
+    VAD_ABS_MIN_RMS,
+    VAD_RMS_THRESHOLD,
+    state.noiseFloorRms * VAD_SPEECH_FACTOR,
+  );
+  const isSpeechFrame = rms >= adaptiveThreshold;
 
   if (isSpeechFrame) {
     state.lastSpeechAtMs = nowMs;
@@ -273,11 +283,15 @@ function handleVadFrame(channelData, sampleRate) {
       setStatus("Listening...");
     }
   } else if (!state.speechDetected) {
+    state.noiseFloorRms = VAD_NOISE_ALPHA * state.noiseFloorRms + (1 - VAD_NOISE_ALPHA) * rms;
     state.speechStartedAtMs = null;
-    if (state.recordingStartedAtMs !== null && nowMs - state.recordingStartedAtMs > VAD_MAX_TURN_MS) {
-      setStatus("No speech detected. Still listening...");
-      state.recordingStartedAtMs = nowMs;
-      state.chunks = [];
+    if (
+      state.recordingStartedAtMs !== null &&
+      nowMs - state.recordingStartedAtMs > VAD_MAX_TURN_MS
+    ) {
+      setStatus("Processing turn...");
+      requestStopRecording("max_turn_no_speech");
+      return;
     }
   }
 
@@ -335,8 +349,12 @@ async function stopRecording(options = {}) {
   state.speechStartedAtMs = null;
   state.lastSpeechAtMs = null;
   state.recordingStartedAtMs = null;
+  state.noiseFloorRms = 0.002;
 
-  if (!hadSpeech) {
+  const shouldForceProcessWithoutVad =
+    reason === "max_turn_no_speech" || (reason === "manual" && chunks.length > 0);
+
+  if (!hadSpeech && !shouldForceProcessWithoutVad) {
     state.isStopping = false;
     if (reason === "manual") {
       setStatus("Stopped.");
