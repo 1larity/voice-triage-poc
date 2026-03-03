@@ -233,16 +233,23 @@ def _resolve_path(path_value: Path, project_root: Path) -> Path:
 
 def _default_whisper_bin(venv_dir: Path) -> Path:
     """default whisper bin."""
+    candidates: list[Path]
     if os.name == "nt":
-        candidates = (
+        candidates = [
+            venv_dir / "tools" / "whispercpp" / "Release" / "whisper-cli.exe",
+            venv_dir / "tools" / "whispercpp" / "Release" / "main.exe",
+            venv_dir / "tools" / "whispercpp" / "build" / "bin" / "whisper-cli.exe",
+            venv_dir / "tools" / "whispercpp" / "build" / "bin" / "main.exe",
             venv_dir / "tools" / "whispercpp" / "whisper-cli.exe",
             venv_dir / "tools" / "whispercpp" / "main.exe",
-        )
+        ]
     else:
-        candidates = (
+        candidates = [
+            venv_dir / "tools" / "whispercpp" / "build" / "bin" / "whisper-cli",
+            venv_dir / "tools" / "whispercpp" / "build" / "bin" / "main",
             venv_dir / "tools" / "whispercpp" / "whisper-cli",
             venv_dir / "tools" / "whispercpp" / "main",
-        )
+        ]
 
     for candidate in candidates:
         if candidate.exists():

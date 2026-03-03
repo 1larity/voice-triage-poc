@@ -57,12 +57,22 @@ function Convert-ToRepoRelative {
 }
 
 if (-not $WhisperBin) {
-    $whisperCliRelative = ".venv/tools/whispercpp/whisper-cli.exe"
-    if (Test-Path (Join-Path $repoRoot $whisperCliRelative)) {
-        $WhisperBin = $whisperCliRelative
+    $whisperCandidates = @(
+        ".venv/tools/whispercpp/Release/whisper-cli.exe",
+        ".venv/tools/whispercpp/Release/main.exe",
+        ".venv/tools/whispercpp/build/bin/whisper-cli.exe",
+        ".venv/tools/whispercpp/build/bin/main.exe",
+        ".venv/tools/whispercpp/whisper-cli.exe",
+        ".venv/tools/whispercpp/main.exe"
+    )
+    foreach ($candidate in $whisperCandidates) {
+        if (Test-Path (Join-Path $repoRoot $candidate)) {
+            $WhisperBin = $candidate
+            break
+        }
     }
-    else {
-        $WhisperBin = ".venv/tools/whispercpp/main.exe"
+    if (-not $WhisperBin) {
+        $WhisperBin = ".venv/tools/whispercpp/whisper-cli.exe"
     }
 }
 if (-not $WhisperModel) {

@@ -3,6 +3,7 @@ from pathlib import Path
 
 from voice_triage.util.config import (
     _default_piper_bin,
+    _default_whisper_bin,
     _resolve_config_path,
     _should_override_stale_path_env,
 )
@@ -95,5 +96,24 @@ def test_default_piper_bin_prefers_venv_local_script_when_present(tmp_path: Path
     fallback.write_text("bin", encoding="utf-8")
 
     selected = _default_piper_bin(venv_dir)
+
+    assert selected == preferred
+
+
+def test_default_whisper_bin_prefers_release_or_build_layout(tmp_path: Path) -> None:
+    venv_dir = tmp_path / ".venv"
+    if os.name == "nt":
+        preferred = venv_dir / "tools" / "whispercpp" / "Release" / "whisper-cli.exe"
+        fallback = venv_dir / "tools" / "whispercpp" / "main.exe"
+    else:
+        preferred = venv_dir / "tools" / "whispercpp" / "build" / "bin" / "whisper-cli"
+        fallback = venv_dir / "tools" / "whispercpp" / "main"
+
+    preferred.parent.mkdir(parents=True, exist_ok=True)
+    fallback.parent.mkdir(parents=True, exist_ok=True)
+    preferred.write_text("bin", encoding="utf-8")
+    fallback.write_text("bin", encoding="utf-8")
+
+    selected = _default_whisper_bin(venv_dir)
 
     assert selected == preferred
