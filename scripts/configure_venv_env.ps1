@@ -33,30 +33,66 @@ if (-not (Test-Path $venvDir)) {
     Write-Error ".venv not found. Run 'uv venv .venv' first."
 }
 
+function Convert-ToRepoRelative {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PathValue
+    )
+    if (-not $PathValue) {
+        return $PathValue
+    }
+
+    $candidate = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $PathValue))
+    $rootFull = [System.IO.Path]::GetFullPath($repoRoot)
+
+    if ($candidate.StartsWith($rootFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $rootUri = New-Object System.Uri(($rootFull.TrimEnd("\") + "\"))
+        $candidateUri = New-Object System.Uri($candidate)
+        $relativeUri = $rootUri.MakeRelativeUri($candidateUri)
+        $relative = [System.Uri]::UnescapeDataString($relativeUri.ToString())
+        return ($relative -replace "\\", "/")
+    }
+
+    return ($PathValue -replace "\\", "/")
+}
+
 if (-not $WhisperBin) {
-    $whisperCli = Join-Path $venvDir "tools\\whispercpp\\whisper-cli.exe"
-    if (Test-Path $whisperCli) {
-        $WhisperBin = $whisperCli
+    $whisperCliRelative = ".venv/tools/whispercpp/whisper-cli.exe"
+    if (Test-Path (Join-Path $repoRoot $whisperCliRelative)) {
+        $WhisperBin = $whisperCliRelative
     }
     else {
-        $WhisperBin = Join-Path $venvDir "tools\\whispercpp\\main.exe"
+        $WhisperBin = ".venv/tools/whispercpp/main.exe"
     }
 }
 if (-not $WhisperModel) {
-    $WhisperModel = Join-Path $venvDir "tools\\whispercpp\\models\\ggml-base.en.bin"
+    $WhisperModel = ".venv/tools/whispercpp/models/ggml-base.en.bin"
 }
 if (-not $PiperBin) {
-    $PiperBin = Join-Path $venvDir "tools\\piper\\piper.exe"
+    $venvPiperScript = ".venv/Scripts/piper.exe"
+    if (Test-Path (Join-Path $repoRoot $venvPiperScript)) {
+        $PiperBin = $venvPiperScript
+    }
+    else {
+        $PiperBin = ".venv/tools/piper/piper.exe"
+    }
 }
 if (-not $PiperModel) {
-    $PiperModel = Join-Path $venvDir "tools\\piper\\models\\voice.onnx"
+    $PiperModel = ".venv/tools/piper/models/voice.onnx"
 }
 if (-not $SslCertFile) {
-    $SslCertFile = Join-Path $venvDir "certs\\dev-cert.pem"
+    $SslCertFile = ".venv/certs/dev-cert.pem"
 }
 if (-not $SslKeyFile) {
-    $SslKeyFile = Join-Path $venvDir "certs\\dev-key.pem"
+    $SslKeyFile = ".venv/certs/dev-key.pem"
 }
+
+$WhisperBin = Convert-ToRepoRelative -PathValue $WhisperBin
+$WhisperModel = Convert-ToRepoRelative -PathValue $WhisperModel
+$PiperBin = Convert-ToRepoRelative -PathValue $PiperBin
+$PiperModel = Convert-ToRepoRelative -PathValue $PiperModel
+$SslCertFile = Convert-ToRepoRelative -PathValue $SslCertFile
+$SslKeyFile = Convert-ToRepoRelative -PathValue $SslKeyFile
 
 $content = @(
     "# Local venv-bound config for voice-triage-poc"

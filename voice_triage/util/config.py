@@ -7,6 +7,19 @@ import shlex
 from dataclasses import dataclass
 from pathlib import Path
 
+_PATH_LIKE_ENV_KEYS = {
+    "VOICE_TRIAGE_DB",
+    "VOICE_TRIAGE_RAG_INDEX",
+    "VOICE_TRIAGE_KB_DIR",
+    "VOICE_TRIAGE_DATA_DIR",
+    "WHISPERCPP_BIN",
+    "WHISPERCPP_MODEL",
+    "PIPER_BIN",
+    "PIPER_MODEL",
+    "VOICE_TRIAGE_SSL_CERTFILE",
+    "VOICE_TRIAGE_SSL_KEYFILE",
+}
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -47,8 +60,16 @@ def load_settings() -> Settings:
     kb_dir = project_root / "kb"
     venv_dir = project_root / ".venv"
 
-    db_path = Path(os.getenv("VOICE_TRIAGE_DB", data_dir / "voice_triage.db"))
-    rag_index_path = Path(os.getenv("VOICE_TRIAGE_RAG_INDEX", data_dir / "rag_index.db"))
+    db_path = _resolve_config_path(
+        raw_value=os.getenv("VOICE_TRIAGE_DB"),
+        default_path=data_dir / "voice_triage.db",
+        project_root=project_root,
+    )
+    rag_index_path = _resolve_config_path(
+        raw_value=os.getenv("VOICE_TRIAGE_RAG_INDEX"),
+        default_path=data_dir / "rag_index.db",
+        project_root=project_root,
+    )
     whisper_bin_default = _default_whisper_bin(venv_dir)
     whisper_model_default = venv_dir / "tools" / "whispercpp" / "models" / "ggml-base.en.bin"
     piper_bin_default = _default_piper_bin(venv_dir)
@@ -60,12 +81,34 @@ def load_settings() -> Settings:
 
     return Settings(
         project_root=project_root,
-        kb_dir=Path(os.getenv("VOICE_TRIAGE_KB_DIR", kb_dir)),
-        data_dir=Path(os.getenv("VOICE_TRIAGE_DATA_DIR", data_dir)),
+        kb_dir=_resolve_config_path(
+            raw_value=os.getenv("VOICE_TRIAGE_KB_DIR"),
+            default_path=kb_dir,
+            project_root=project_root,
+        ),
+        data_dir=_resolve_config_path(
+            raw_value=os.getenv("VOICE_TRIAGE_DATA_DIR"),
+            default_path=data_dir,
+            project_root=project_root,
+        ),
         db_path=db_path,
         rag_index_path=rag_index_path,
-        whispercpp_bin=os.getenv("WHISPERCPP_BIN", str(whisper_bin_default)),
-        whispercpp_model=os.getenv("WHISPERCPP_MODEL", str(whisper_model_default)),
+        whispercpp_bin=str(
+            _resolve_config_path(
+                raw_value=os.getenv("WHISPERCPP_BIN"),
+                default_path=whisper_bin_default,
+                project_root=project_root,
+                fallback_to_existing_default=True,
+            )
+        ),
+        whispercpp_model=str(
+            _resolve_config_path(
+                raw_value=os.getenv("WHISPERCPP_MODEL"),
+                default_path=whisper_model_default,
+                project_root=project_root,
+                fallback_to_existing_default=True,
+            )
+        ),
         whispercpp_use_gpu=_env_bool("WHISPERCPP_USE_GPU", default=False),
         whispercpp_gpu_layers=_env_int("WHISPERCPP_GPU_LAYERS", default=60, minimum=0),
         whispercpp_threads=_optional_positive_int(whisper_threads_raw),
@@ -83,11 +126,39 @@ def load_settings() -> Settings:
         byo_inference_model=os.getenv("VOICE_TRIAGE_BYO_MODEL"),
         byo_inference_api_key=os.getenv("VOICE_TRIAGE_BYO_API_KEY"),
         byo_inference_system_prompt=os.getenv("VOICE_TRIAGE_BYO_SYSTEM_PROMPT"),
-        piper_bin=os.getenv("PIPER_BIN", str(piper_bin_default)),
-        piper_model=os.getenv("PIPER_MODEL", str(piper_model_default)),
+        piper_bin=str(
+            _resolve_config_path(
+                raw_value=os.getenv("PIPER_BIN"),
+                default_path=piper_bin_default,
+                project_root=project_root,
+                fallback_to_existing_default=True,
+            )
+        ),
+        piper_model=str(
+            _resolve_config_path(
+                raw_value=os.getenv("PIPER_MODEL"),
+                default_path=piper_model_default,
+                project_root=project_root,
+                fallback_to_existing_default=True,
+            )
+        ),
         piper_default_voice_id=os.getenv("PIPER_DEFAULT_VOICE_ID", "en_GB-alba-medium"),
-        web_ssl_certfile=os.getenv("VOICE_TRIAGE_SSL_CERTFILE", str(ssl_cert_default)),
-        web_ssl_keyfile=os.getenv("VOICE_TRIAGE_SSL_KEYFILE", str(ssl_key_default)),
+        web_ssl_certfile=str(
+            _resolve_config_path(
+                raw_value=os.getenv("VOICE_TRIAGE_SSL_CERTFILE"),
+                default_path=ssl_cert_default,
+                project_root=project_root,
+                fallback_to_existing_default=True,
+            )
+        ),
+        web_ssl_keyfile=str(
+            _resolve_config_path(
+                raw_value=os.getenv("VOICE_TRIAGE_SSL_KEYFILE"),
+                default_path=ssl_key_default,
+                project_root=project_root,
+                fallback_to_existing_default=True,
+            )
+        ),
     )
 
 
@@ -104,8 +175,60 @@ def _load_local_env(project_root: Path) -> None:
             key, raw_value = stripped.split("=", 1)
             key = key.strip()
             value = raw_value.strip().strip("'\"")
-            if key:
-                os.environ.setdefault(key, value)
+            if not key:
+                continue
+
+            current = os.getenv(key)
+            if current is None or not current.strip():
+                os.environ[key] = value
+                continue
+
+            if _should_override_stale_path_env(
+                key=key,
+                current_value=current,
+                new_value=value,
+                project_root=project_root,
+            ):
+                os.environ[key] = value
+
+
+def _should_override_stale_path_env(
+    key: str, current_value: str, new_value: str, project_root: Path
+) -> bool:
+    """Decide whether to replace a stale path-like process env value with local .env value."""
+    if key not in _PATH_LIKE_ENV_KEYS:
+        return False
+    current_path = _resolve_path(Path(current_value), project_root)
+    new_path = _resolve_path(Path(new_value), project_root)
+    return (not current_path.exists()) and new_path.exists()
+
+
+def _resolve_config_path(
+    raw_value: str | None,
+    default_path: Path,
+    project_root: Path,
+    *,
+    fallback_to_existing_default: bool = False,
+) -> Path:
+    """Resolve env path values relative to the repo and optionally recover from stale paths."""
+    default_abs = _resolve_path(default_path, project_root)
+    if raw_value is None or not raw_value.strip():
+        return default_abs
+
+    candidate = _resolve_path(Path(raw_value.strip().strip("'\"")), project_root)
+    if candidate.exists():
+        return candidate
+    if fallback_to_existing_default and default_abs.exists():
+        return default_abs
+    return candidate
+
+
+def _resolve_path(path_value: Path, project_root: Path) -> Path:
+    """Resolve relative config paths against project root and normalize separators."""
+    expanded = Path(str(path_value)).expanduser()
+    if expanded.is_absolute():
+        return expanded.resolve(strict=False)
+    return (project_root / expanded).resolve(strict=False)
 
 
 def _default_whisper_bin(venv_dir: Path) -> Path:
@@ -130,8 +253,20 @@ def _default_whisper_bin(venv_dir: Path) -> Path:
 def _default_piper_bin(venv_dir: Path) -> Path:
     """default piper bin."""
     if os.name == "nt":
-        return venv_dir / "tools" / "piper" / "piper.exe"
-    return venv_dir / "tools" / "piper" / "piper"
+        candidates = (
+            venv_dir / "Scripts" / "piper.exe",
+            venv_dir / "tools" / "piper" / "piper.exe",
+        )
+    else:
+        candidates = (
+            venv_dir / "bin" / "piper",
+            venv_dir / "tools" / "piper" / "piper",
+        )
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
 
 
 def _env_bool(name: str, default: bool) -> bool:

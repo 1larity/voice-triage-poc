@@ -51,8 +51,8 @@ uv sync --dev
 
 ```powershell
 .\scripts\configure_venv_env.ps1 `
-  -WhisperBin "C:\path\to\whisper.cpp\build\bin\whisper-cli.exe" `
-  -WhisperModel "C:\path\to\whisper.cpp\models\ggml-base.en.bin" `
+  -WhisperBin ".venv/tools/whispercpp/whisper-cli.exe" `
+  -WhisperModel ".venv/tools/whispercpp/models/ggml-base.en.bin" `
   -WhisperUseGpu $true `
   -WhisperGpuLayers 60 `
   -WhisperThreads 6 `
@@ -62,16 +62,16 @@ uv sync --dev
   -ByoModel "" `
   -ByoApiKey "" `
   -ByoSystemPrompt "" `
-  -PiperBin "C:\path\to\piper.exe" `
-  -PiperModel "C:\path\to\en_GB-alba-medium.onnx" `
+  -PiperBin ".venv/tools/piper/piper.exe" `
+  -PiperModel ".venv/tools/piper/models/en_GB-alba-medium.onnx" `
   -PiperDefaultVoiceId "en_GB-alba-medium" `
   -WebHost "0.0.0.0" `
   -WebPort 8443 `
-  -SslCertFile "K:\chatbot poc\voice-triage-poc\.venv\certs\dev-cert.pem" `
-  -SslKeyFile "K:\chatbot poc\voice-triage-poc\.venv\certs\dev-key.pem"
+  -SslCertFile ".venv/certs/dev-cert.pem" `
+  -SslKeyFile ".venv/certs/dev-key.pem"
 ```
 
-This writes `k:\chatbot poc\voice-triage-poc\.venv\.env`, and the app auto-loads it.
+This writes `.venv/.env` (project-local), and the app auto-loads it.
 
 5. Generate TLS certs (required for LAN browser mic access):
 
