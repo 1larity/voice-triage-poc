@@ -1,0 +1,22 @@
+﻿__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+build/
+dist/
+*.egg-info/
+
+# local runtime artifacts
+*.wav
+*.log
+.env
+
+data/*.db
+data/tmp_audio/
+data/tmp_tts/
+data/*.pid

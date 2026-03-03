@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voice Triage Local UI</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Local Voice Triage POC</p>
+          <h1>Conversation Console</h1>
+        </div>
+        <div class="controls">
+          <button id="newSessionBtn" class="btn subtle">New Session</button>
+        </div>
+      </header>
+
+      <section class="panel mic-panel">
+        <div class="mic-actions">
+          <button id="startBtn" class="btn primary">Start Listening</button>
+          <button id="stopBtn" class="btn danger" disabled>Stop Listening</button>
+        </div>
+        <div class="voice-picker">
+          <label for="voiceSelect">Voice</label>
+          <select id="voiceSelect"></select>
+        </div>
+        <p id="statusText" class="status">Ready. Click Start Listening.</p>
+      </section>
+
+      <section class="panel chat-panel">
+        <div id="chatLog" class="chat-log"></div>
+      </section>
+
+      <section class="panel data-panel">
+        <h2>Captured Move Data (JSON)</h2>
+        <textarea
+          id="capturedDataBox"
+          class="captured-data-box"
+          readonly
+          placeholder='{"current_address": null, "current_postcode": null, "new_address": null, "new_postcode": null, "move_date": null}'
+        ></textarea>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
