@@ -51,20 +51,22 @@ uv sync --dev
 
 ```powershell
 .\scripts\configure_venv_env.ps1 `
-  -WhisperBin ".venv/tools/whispercpp/whisper-cli.exe" `
+  -WhisperBin ".venv/tools/whispercpp/Release/whisper-cli.exe" `
   -WhisperModel ".venv/tools/whispercpp/models/ggml-base.en.bin" `
   -WhisperUseGpu $true `
   -WhisperGpuLayers 60 `
   -WhisperThreads 6 `
+  -WhisperTimeoutSeconds 45 `
   -InferenceBackend "local" `
   -ByoInferenceUrl "" `
   -ByoApiStyle "generic" `
   -ByoModel "" `
   -ByoApiKey "" `
   -ByoSystemPrompt "" `
-  -PiperBin ".venv/tools/piper/piper.exe" `
+  -PiperBin ".venv/Scripts/piper.exe" `
   -PiperModel ".venv/tools/piper/models/en_GB-alba-medium.onnx" `
   -PiperDefaultVoiceId "en_GB-alba-medium" `
+  -PiperTimeoutSeconds 30 `
   -WebHost "0.0.0.0" `
   -WebPort 8443 `
   -SslCertFile ".venv/certs/dev-cert.pem" `

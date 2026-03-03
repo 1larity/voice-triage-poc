@@ -17,6 +17,7 @@ param(
     [string]$PiperBin = "",
     [string]$PiperModel = "",
     [string]$PiperDefaultVoiceId = "en_GB-alba-medium",
+    [double]$PiperTimeoutSeconds = 30.0,
     [string]$SslCertFile = "",
     [string]$SslKeyFile = "",
     [string]$WebHost = "0.0.0.0",
@@ -122,6 +123,7 @@ $content = @(
     "PIPER_BIN=$PiperBin"
     "PIPER_MODEL=$PiperModel"
     "PIPER_DEFAULT_VOICE_ID=$PiperDefaultVoiceId"
+    "PIPER_TIMEOUT_SECONDS=$PiperTimeoutSeconds"
     "VOICE_TRIAGE_SSL_CERTFILE=$SslCertFile"
     "VOICE_TRIAGE_SSL_KEYFILE=$SslKeyFile"
     "VOICE_TRIAGE_WEB_HOST=$WebHost"

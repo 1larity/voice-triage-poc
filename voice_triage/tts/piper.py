@@ -14,10 +14,13 @@ class PiperUnavailable(RuntimeError):
 class PiperClient:
     """Subprocess wrapper around Piper CLI TTS."""
 
-    def __init__(self, bin_path: str | None, model_path: str | None) -> None:
+    def __init__(
+        self, bin_path: str | None, model_path: str | None, timeout_seconds: float = 30.0
+    ) -> None:
         """init  ."""
         self.bin_path = bin_path
         self.model_path = Path(model_path).expanduser() if model_path else None
+        self.timeout_seconds = max(1.0, timeout_seconds)
 
     def ensure_ready(self, model_path: Path | None = None) -> None:
         """Ensure ready."""
@@ -51,13 +54,19 @@ class PiperClient:
             str(output_path),
         ]
 
-        process = subprocess.run(
-            command,
-            input=text,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
+        try:
+            process = subprocess.run(
+                command,
+                input=text,
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=self.timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                f"Piper timed out after {self.timeout_seconds:.1f}s while synthesizing audio."
+            ) from exc
         if process.returncode != 0:
             raise RuntimeError(
                 f"Piper failed with code {process.returncode}: {process.stderr.strip()}"
