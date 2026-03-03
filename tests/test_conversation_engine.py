@@ -126,3 +126,25 @@ def test_move_flow_accepts_natural_language_date() -> None:
 
     assert result.stage == ConversationStage.CONFIRM
     assert result.outcome["captured_data"]["move_date"] == "2026-04-04"
+
+
+def test_move_flow_rejects_non_address_text_for_current_address() -> None:
+    engine = ConversationEngine(extractor=HeuristicExtractor(), rag_service=FakeRagService())
+    session_id, _ = engine.create_session()
+
+    engine.process_turn(session_id=session_id, transcript="I'm moving house")
+    result = engine.process_turn(session_id=session_id, transcript="not sure")
+
+    assert result.stage == ConversationStage.ASK_CURRENT_ADDRESS
+    assert "current address" in result.response_text.lower()
+
+
+def test_move_flow_rejects_address_without_house_number() -> None:
+    engine = ConversationEngine(extractor=HeuristicExtractor(), rag_service=FakeRagService())
+    session_id, _ = engine.create_session()
+
+    engine.process_turn(session_id=session_id, transcript="I'm moving house")
+    result = engine.process_turn(session_id=session_id, transcript="Cheltenham Place")
+
+    assert result.stage == ConversationStage.ASK_CURRENT_ADDRESS
+    assert "current address" in result.response_text.lower()

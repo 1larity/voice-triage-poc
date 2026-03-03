@@ -478,22 +478,23 @@ class ConversationEngine:
         if len(normalized) < 8:
             return None
 
-        address_markers = (
-            " road",
-            " street",
-            " avenue",
-            " lane",
-            " drive",
-            " close",
-            " court",
-            " place",
-            ",",
-        )
         has_number = any(char.isdigit() for char in normalized)
-        has_marker = any(marker in normalized.lower() for marker in address_markers)
+        has_alpha = any(char.isalpha() for char in normalized)
         has_postcode = extraction.postcode is not None
+        lowered = normalized.lower()
+        invalid_phrases = {
+            "not sure",
+            "no idea",
+            "unknown",
+            "none",
+            "n a",
+            "na",
+            "idk",
+        }
+        if lowered in invalid_phrases:
+            return None
 
-        if not (has_number or has_marker or has_postcode):
+        if not ((has_alpha and has_number) or has_postcode):
             return None
         return normalized
 
