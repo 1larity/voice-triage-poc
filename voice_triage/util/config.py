@@ -47,6 +47,7 @@ class Settings:
     piper_bin: str | None
     piper_model: str | None
     piper_default_voice_id: str | None
+    piper_timeout_seconds: float
     web_ssl_certfile: str | None
     web_ssl_keyfile: str | None
     max_audio_upload_bytes: int
@@ -148,6 +149,7 @@ def load_settings() -> Settings:
             )
         ),
         piper_default_voice_id=os.getenv("PIPER_DEFAULT_VOICE_ID", "en_GB-alba-medium"),
+        piper_timeout_seconds=_env_float("PIPER_TIMEOUT_SECONDS", default=30.0, minimum=1.0),
         web_ssl_certfile=str(
             _resolve_config_path(
                 raw_value=os.getenv("VOICE_TRIAGE_SSL_CERTFILE"),
