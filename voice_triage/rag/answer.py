@@ -219,22 +219,26 @@ def _analyze_query(question: str) -> _QueryProfile:
 def _select_source_focused_candidates(candidates: list[_AnswerCandidate]) -> list[_AnswerCandidate]:
     """Prefer the strongest source to avoid mixing unrelated topics in one answer."""
     sorted_candidates = sorted(candidates, key=lambda item: item.score, reverse=True)
-    top = sorted_candidates[0]
     per_source_best: dict[str, float] = {}
     for candidate in sorted_candidates:
         existing = per_source_best.get(candidate.source)
         if existing is None or candidate.score > existing:
             per_source_best[candidate.source] = candidate.score
 
-    primary_source = max(per_source_best.items(), key=lambda item: item[1])[0]
+    ranked_sources = sorted(per_source_best.items(), key=lambda item: item[1], reverse=True)
+    primary_source, primary_score = ranked_sources[0]
     source_filtered = [
         candidate for candidate in sorted_candidates if candidate.source == primary_source
     ]
     if not source_filtered:
         return sorted_candidates
 
-    # If the primary source is very close to the global top, keep focus on that source only.
-    if source_filtered[0].score >= top.score - 0.12:
+    # Keep strict single-source focus only when the primary source is clearly stronger.
+    if len(ranked_sources) == 1:
+        return source_filtered
+
+    secondary_score = ranked_sources[1][1]
+    if (primary_score - secondary_score) >= 0.12:
         return source_filtered
     return sorted_candidates
 

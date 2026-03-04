@@ -3,7 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from voice_triage.rag.answer import LocalRagService
+from voice_triage.rag.answer import (
+    LocalRagService,
+    _AnswerCandidate,
+    _select_source_focused_candidates,
+)
 from voice_triage.rag.index import build_index, init_index
 from voice_triage.rag.retrieve import SqliteRetriever
 
@@ -201,3 +205,37 @@ def test_process_question_returns_multi_step_answer_from_single_topic(tmp_path: 
     assert "main steps" in answer.lower()
     assert "taxi" in answer.lower()
     assert "pub" not in answer.lower()
+
+
+def test_source_focus_allows_multiple_sources_when_scores_are_close() -> None:
+    candidates = [
+        _AnswerCandidate(
+            score=0.91, text="a1", source="a.md", section="key_points", bullet_index=0
+        ),
+        _AnswerCandidate(
+            score=0.89, text="b1", source="b.md", section="key_points", bullet_index=0
+        ),
+        _AnswerCandidate(score=0.82, text="a2", source="a.md", section="summary", bullet_index=1),
+    ]
+
+    ranked = _select_source_focused_candidates(candidates)
+
+    assert any(candidate.source == "a.md" for candidate in ranked)
+    assert any(candidate.source == "b.md" for candidate in ranked)
+
+
+def test_source_focus_prefers_single_source_when_margin_is_large() -> None:
+    candidates = [
+        _AnswerCandidate(
+            score=0.95, text="a1", source="a.md", section="key_points", bullet_index=0
+        ),
+        _AnswerCandidate(
+            score=0.70, text="b1", source="b.md", section="key_points", bullet_index=0
+        ),
+        _AnswerCandidate(score=0.68, text="a2", source="a.md", section="summary", bullet_index=1),
+    ]
+
+    ranked = _select_source_focused_candidates(candidates)
+
+    assert ranked
+    assert all(candidate.source == "a.md" for candidate in ranked)

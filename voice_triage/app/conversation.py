@@ -89,11 +89,35 @@ class ConversationEngine:
         "do i need",
         "what next",
         "then what",
-        "how much",
-        "how long",
-        "where do i",
-        "can i",
         "and then",
+    )
+    FOLLOW_UP_GENERIC_TERMS: frozenset[str] = frozenset(
+        {
+            "application",
+            "applications",
+            "apply",
+            "cost",
+            "costs",
+            "document",
+            "documents",
+            "evidence",
+            "fee",
+            "fees",
+            "long",
+            "need",
+            "next",
+            "price",
+            "prices",
+            "process",
+            "requirement",
+            "requirements",
+            "step",
+            "steps",
+            "take",
+            "timeline",
+            "timescale",
+            "when",
+        }
     )
     SPOKEN_NUMBER_TOKENS: frozenset[str] = frozenset(
         {
@@ -295,8 +319,24 @@ class ConversationEngine:
         starts_with_followup = any(
             lowered.startswith(starter) for starter in cls.FOLLOW_UP_STARTERS
         )
+        if starts_with_followup:
+            return not cls._has_explicit_new_topic_terms(tokens, topic_terms)
+
         short_question = len(tokens) <= 6 and text.strip().endswith("?")
-        return starts_with_followup or short_question
+        if not short_question:
+            return False
+        return not cls._has_explicit_new_topic_terms(tokens, topic_terms)
+
+    @classmethod
+    def _has_explicit_new_topic_terms(cls, tokens: set[str], topic_terms: set[str]) -> bool:
+        """Detect clear new-topic tokens so short questions can safely switch context."""
+        novel_terms = tokens - topic_terms
+        informative_terms = {
+            term
+            for term in novel_terms
+            if term not in cls.FOLLOW_UP_GENERIC_TERMS and len(term) > 2
+        }
+        return bool(informative_terms)
 
     @classmethod
     def _topic_terms_from_source(cls, source: str) -> set[str]:
