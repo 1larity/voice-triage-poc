@@ -117,7 +117,7 @@ class ApiRuntime:
     engine: ConversationEngine
     session_voice_ids: dict[str, str] = field(default_factory=dict)
     reindex_lock: Lock = field(default_factory=Lock)
-    last_reindex_started_at: float = 0.0
+    last_reindex_started_at: float | None = None
 
 
 class TriageApi:
@@ -208,17 +208,18 @@ class TriageApi:
         try:
             now = time.monotonic()
             min_interval = self.runtime.settings.reindex_min_interval_seconds
-            elapsed = now - self.runtime.last_reindex_started_at
-            if elapsed < min_interval:
-                retry_after = int(min_interval - elapsed) + 1
-                raise HTTPException(
-                    status_code=429,
-                    detail=(
-                        "Reindex called too frequently. "
-                        f"Please retry in about {retry_after} second(s)."
-                    ),
-                    headers={"Retry-After": str(retry_after)},
-                )
+            if self.runtime.last_reindex_started_at is not None:
+                elapsed = now - self.runtime.last_reindex_started_at
+                if elapsed < min_interval:
+                    retry_after = int(min_interval - elapsed) + 1
+                    raise HTTPException(
+                        status_code=429,
+                        detail=(
+                            "Reindex called too frequently. "
+                            f"Please retry in about {retry_after} second(s)."
+                        ),
+                        headers={"Retry-After": str(retry_after)},
+                    )
 
             kb_dir = self.runtime.settings.kb_dir
             kb_dir.mkdir(parents=True, exist_ok=True)
