@@ -2,6 +2,9 @@ from typing import Any
 
 from voice_triage.app.conversation import ConversationEngine, ConversationStage
 from voice_triage.nlu.extractor import HeuristicExtractor
+from voice_triage.rag.answer import LocalRagService
+from voice_triage.rag.index import build_index
+from voice_triage.rag.retrieve import SqliteRetriever
 from voice_triage.workflows.router import Route
 
 
@@ -174,3 +177,47 @@ def test_move_flow_rejects_spoken_number_without_address_structure() -> None:
 
     assert result.stage == ConversationStage.ASK_CURRENT_ADDRESS
     assert "current address" in result.response_text.lower()
+
+
+def test_follow_up_question_keeps_previous_rag_topic(tmp_path) -> None:
+    kb_dir = tmp_path / "kb"
+    kb_dir.mkdir(parents=True, exist_ok=True)
+    (kb_dir / "licensing_taxi_licence.md").write_text(
+        "\n".join(
+            [
+                "title: Taxi licence applications",
+                "tags: [licensing, taxi, licence]",
+                "summary:",
+                "- Taxi licence applications are required before carrying passengers.",
+                "key_points:",
+                "- Taxi licence documents include proof of identity.",
+                "- Taxi licence evidence includes right-to-work checks.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (kb_dir / "licensing_pub_licence.md").write_text(
+        "\n".join(
+            [
+                "title: Pub alcohol premises licence",
+                "tags: [licensing, alcohol, pub]",
+                "summary:",
+                "- Pub premises licences are for alcohol sales.",
+                "key_points:",
+                "- Pub licence applications need a designated premises supervisor.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    index_db = tmp_path / "rag.db"
+    build_index(kb_dir=kb_dir, index_db_path=index_db)
+    rag_service = LocalRagService(retriever=SqliteRetriever(index_db))
+    engine = ConversationEngine(extractor=HeuristicExtractor(), rag_service=rag_service)
+    session_id, _ = engine.create_session()
+
+    first = engine.process_turn(session_id=session_id, transcript="How do I get a taxi licence?")
+    assert "taxi" in first.response_text.lower()
+
+    second = engine.process_turn(session_id=session_id, transcript="What documents do I need?")
+    assert "taxi" in second.response_text.lower()
+    assert "pub" not in second.response_text.lower()

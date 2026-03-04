@@ -156,3 +156,48 @@ def test_build_index_reports_in_progress_when_db_writer_lock_is_held(tmp_path: P
         connection.execute("BEGIN IMMEDIATE")
         with pytest.raises(RuntimeError, match="Reindex already in progress"):
             build_index(kb_dir=kb_dir, index_db_path=index_db)
+
+
+def test_process_question_returns_multi_step_answer_from_single_topic(tmp_path: Path) -> None:
+    kb_dir = tmp_path / "kb"
+    kb_dir.mkdir(parents=True, exist_ok=True)
+    (kb_dir / "licensing_taxi_licence.md").write_text(
+        "\n".join(
+            [
+                "title: Taxi licence applications",
+                "tags: [licensing, taxi, licence]",
+                "summary:",
+                "- Taxi licence applications must be completed before driving passengers.",
+                "key_points:",
+                "- Check taxi driver eligibility requirements first.",
+                "- Prepare taxi licence identity and right-to-work documents.",
+                "- Complete the taxi licence application form and submit payment.",
+                "- Book and pass the required taxi knowledge and safeguarding checks.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (kb_dir / "licensing_pub_licence.md").write_text(
+        "\n".join(
+            [
+                "title: Pub alcohol premises licence",
+                "tags: [licensing, alcohol, pub]",
+                "summary:",
+                "- Pub premises licences are for alcohol sales.",
+                "key_points:",
+                "- Appoint a designated premises supervisor.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    index_db = tmp_path / "rag.db"
+    build_index(kb_dir=kb_dir, index_db_path=index_db)
+    service = LocalRagService(retriever=SqliteRetriever(index_db))
+
+    answer, metadata = service.answer("How do I get a taxi licence?")
+
+    assert metadata["used_kb"] is True
+    assert "main steps" in answer.lower()
+    assert "taxi" in answer.lower()
+    assert "pub" not in answer.lower()

@@ -16,3 +16,6 @@ demo_questions:
 - "My bin wasn't collected - what should I do?"
 - "How long should I wait before reporting a missed collection?"
 - "When will my missed bin be collected?"
+
+last_verified:
+- 2026-03-03
