@@ -1,18 +1,45 @@
 title: Bin collection days and schedules (Brighton & Hove)
 tags: [bins, collection-days, schedule]
+
 summary:
-- Find your bin collection day online using your postcode.
-- Collections occur weekly for most bins, alternating between recycling and general waste.
+- Check when your bins will be collected using online form.
+- Collection days vary by address.
 
 key_points:
-- Check your collection day on the Brighton & Hove Council website using your postcode.
-- General waste and recycling bins are collected on alternate weeks.
-- Food waste is collected weekly.
+- Use online form to check collection days for rubbish, recycling, garden waste and food waste.
+- Garden waste collections require paid subscription.
+- Food waste collections are being rolled out by area.
+- Collection days depend on your address.
 - Put bins out by 7am on collection day.
 - Bank holidays may affect collection schedules - check the website for changes.
-- Download the collection calendar for your address.
 
-demo_questions:
-- "When is my bin collection day?"
-- "Are bins collected on bank holidays?"
-- "How often are my bins collected?"
+process_steps:
+- Go to online form to check collection days.
+- Enter your address to find your collection schedule.
+- UNKNOWN for additional steps.
+
+requirements:
+- UNKNOWN for requirements to check collection schedule.
+
+fees:
+- UNKNOWN for checking collection schedule.
+- Garden waste collection requires paid subscription.
+
+timelines:
+- UNKNOWN for how long collection schedule information is valid.
+- UNKNOWN for notification of schedule changes.
+
+exceptions:
+- Bank holidays may affect collection schedules.
+- UNKNOWN for other exceptions to normal collection schedule.
+
+contacts:
+- UNKNOWN for collection schedule inquiries.
+- Response time: UNKNOWN.
+
+links:
+- https://www.brighton-hove.gov.uk/rubbish-recycling-and-streets/bins-and-collections/check-your-bin-box-and-caddy-collection-days
+- https://enviroservices.brighton-hove.gov.uk/link/collections
+
+last_verified:
+- 2026-03-03

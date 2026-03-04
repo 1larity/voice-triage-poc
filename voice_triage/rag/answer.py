@@ -79,6 +79,8 @@ class RagAnswerConfig:
     boosted_sections: frozenset[str] = field(
         default_factory=lambda: frozenset({"key_points", "summary"})
     )
+    process_answer_max_chars: int = 520
+    process_answer_max_points: int = 4
 
 
 UNKNOWN_KNOWLEDGE_BASE_RESPONSE = (
@@ -88,10 +90,37 @@ UNKNOWN_KNOWLEDGE_BASE_RESPONSE = (
 )
 
 
+@dataclass(frozen=True)
+class _AnswerCandidate:
+    """Internal candidate container used for targeted answer ranking."""
+
+    score: float
+    text: str
+    source: str
+    section: str
+    bullet_index: int
+
+
+@dataclass(frozen=True)
+class _QueryProfile:
+    """Heuristic query analysis to control concise vs multi-step rendering."""
+
+    asks_for_process: bool
+    asks_for_requirements: bool
+    asks_for_timeline: bool
+    asks_for_cost: bool
+
+    @property
+    def wants_expanded_answer(self) -> bool:
+        """Whether the response should surface multiple actionable points."""
+        return self.asks_for_process or self.asks_for_requirements
+
+
 def _render_targeted_answer(question: str, results: list[Any], config: RagAnswerConfig) -> str:
     """Render a concise answer focused on query-matching sub-topics."""
     question_tokens = _tokenize(question)
-    candidates: list[tuple[float, str]] = []
+    profile = _analyze_query(question)
+    candidates: list[_AnswerCandidate] = []
 
     for result in results:
         section = str(result.chunk.metadata.get("section", "")).lower()
@@ -104,20 +133,39 @@ def _render_targeted_answer(question: str, results: list[Any], config: RagAnswer
         focus = _focus_score(question_tokens, focused_text)
         section_boost = config.section_boost if section in config.boosted_sections else 0.0
         combined = result.score + (focus * config.focus_weight) + section_boost
-        candidates.append((combined, focused_text))
+        candidates.append(
+            _AnswerCandidate(
+                score=combined,
+                text=focused_text,
+                source=result.chunk.source,
+                section=section,
+                bullet_index=_bullet_index(result.chunk.metadata),
+            )
+        )
 
     if not candidates:
         return UNKNOWN_KNOWLEDGE_BASE_RESPONSE
 
-    candidates.sort(key=lambda item: item[0], reverse=True)
+    ranked_candidates = _select_source_focused_candidates(candidates)
+
+    if profile.wants_expanded_answer:
+        selected_points = _select_expanded_points(
+            ranked_candidates,
+            max_points=config.process_answer_max_points,
+        )
+        if not selected_points:
+            return UNKNOWN_KNOWLEDGE_BASE_RESPONSE
+        expanded = _format_expanded_answer(selected_points)
+        return _truncate(expanded, max_chars=config.process_answer_max_chars)
+
     selected: list[str] = []
-    top_score = candidates[0][0]
-    for score, text in candidates:
-        if text in selected:
+    top_score = ranked_candidates[0].score
+    for candidate in ranked_candidates:
+        if candidate.text in selected:
             continue
-        if selected and score < (top_score - config.score_drop_threshold):
+        if selected and candidate.score < (top_score - config.score_drop_threshold):
             continue
-        selected.append(text)
+        selected.append(candidate.text)
         if len(selected) >= 2:
             break
 
@@ -126,6 +174,106 @@ def _render_targeted_answer(question: str, results: list[Any], config: RagAnswer
         return _truncate(normalized, max_chars=config.max_answer_chars)
 
     return UNKNOWN_KNOWLEDGE_BASE_RESPONSE
+
+
+def _analyze_query(question: str) -> _QueryProfile:
+    """Infer broad user intent classes for response shaping."""
+    lowered = question.lower()
+    asks_for_process = any(
+        phrase in lowered
+        for phrase in (
+            "how do i",
+            "how can i",
+            "how to",
+            "steps",
+            "process",
+            "procedure",
+            "apply",
+            "application",
+            "what next",
+        )
+    )
+    asks_for_requirements = any(
+        phrase in lowered
+        for phrase in (
+            "what do i need",
+            "requirements",
+            "documents",
+            "evidence",
+            "eligibility",
+            "criteria",
+        )
+    )
+    asks_for_timeline = any(
+        phrase in lowered for phrase in ("how long", "timescale", "when will", "how quickly")
+    )
+    asks_for_cost = any(phrase in lowered for phrase in ("how much", "cost", "fee", "price"))
+    return _QueryProfile(
+        asks_for_process=asks_for_process,
+        asks_for_requirements=asks_for_requirements,
+        asks_for_timeline=asks_for_timeline,
+        asks_for_cost=asks_for_cost,
+    )
+
+
+def _select_source_focused_candidates(candidates: list[_AnswerCandidate]) -> list[_AnswerCandidate]:
+    """Prefer the strongest source to avoid mixing unrelated topics in one answer."""
+    sorted_candidates = sorted(candidates, key=lambda item: item.score, reverse=True)
+    per_source_best: dict[str, float] = {}
+    for candidate in sorted_candidates:
+        existing = per_source_best.get(candidate.source)
+        if existing is None or candidate.score > existing:
+            per_source_best[candidate.source] = candidate.score
+
+    ranked_sources = sorted(per_source_best.items(), key=lambda item: item[1], reverse=True)
+    primary_source, primary_score = ranked_sources[0]
+    source_filtered = [
+        candidate for candidate in sorted_candidates if candidate.source == primary_source
+    ]
+    if not source_filtered:
+        return sorted_candidates
+
+    # Keep strict single-source focus only when the primary source is clearly stronger.
+    if len(ranked_sources) == 1:
+        return source_filtered
+
+    secondary_score = ranked_sources[1][1]
+    if (primary_score - secondary_score) >= 0.12:
+        return source_filtered
+    return sorted_candidates
+
+
+def _select_expanded_points(candidates: list[_AnswerCandidate], max_points: int) -> list[str]:
+    """Select ordered points for process-style answers."""
+    ordered = sorted(candidates, key=lambda item: (item.bullet_index, -item.score))
+    selected: list[str] = []
+    seen: set[str] = set()
+    for candidate in ordered:
+        if candidate.text in seen:
+            continue
+        if not candidate.text:
+            continue
+        seen.add(candidate.text)
+        selected.append(_ensure_sentence(candidate.text))
+        if len(selected) >= max_points:
+            break
+    return selected
+
+
+def _format_expanded_answer(points: list[str]) -> str:
+    """Format multi-point guidance using short numbered steps."""
+    if len(points) == 1:
+        return points[0]
+    rendered = " ".join(f"{index + 1}) {point}" for index, point in enumerate(points))
+    return f"Here are the main steps: {rendered}"
+
+
+def _bullet_index(metadata: dict[str, Any]) -> int:
+    """Safely read bullet_index metadata for deterministic point ordering."""
+    raw = metadata.get("bullet_index")
+    if isinstance(raw, int):
+        return raw
+    return 999
 
 
 def _normalize_answer_text(text: str) -> str:
@@ -157,7 +305,19 @@ def _truncate(text: str, max_chars: int) -> str:
 def _tokenize(text: str) -> set[str]:
     """Tokenize text into normalized terms used for query focus scoring."""
     raw_tokens = re.findall(r"[a-z0-9]+", text.lower())
-    return {token for token in raw_tokens if token not in STOPWORDS}
+    normalized: set[str] = set()
+    for token in raw_tokens:
+        if token.endswith("ies") and len(token) > 4:
+            token = f"{token[:-3]}y"
+        elif token.endswith("ing") and len(token) > 5:
+            token = token[:-3]
+        elif token.endswith("ed") and len(token) > 4:
+            token = token[:-2]
+        elif token.endswith("s") and len(token) > 3:
+            token = token[:-1]
+        if token and token not in STOPWORDS:
+            normalized.add(token)
+    return normalized
 
 
 def _focus_score(question_tokens: set[str], answer_text: str) -> float:
@@ -179,15 +339,20 @@ def _focus_text_to_query(text: str, question_tokens: set[str]) -> str:
         return text
 
     lowered = text.lower()
-    if " have " in lowered:
-        prefix, suffix = text.split(" have ", 1)
+    verb_match = re.search(r"\b(have|has|had)\b", lowered)
+    if verb_match is not None:
+        verb_start = verb_match.start()
+        verb_end = verb_match.end()
+        prefix = text[:verb_start]
+        suffix = text[verb_end:]
         items = [item.strip(" .") for item in re.split(r",|\band\b", suffix) if item.strip(" .")]
         matching_items = [
             item for item in items if _focus_score(question_tokens, item) > 0
         ]
         if matching_items:
             joined = " and ".join(matching_items)
-            return f"{prefix.strip()} have {joined}"
+            verb = text[verb_start:verb_end]
+            return f"{prefix.strip()} {verb} {joined}".strip()
 
     clauses = [
         clause.strip(" .")

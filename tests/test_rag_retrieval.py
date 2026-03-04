@@ -3,7 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from voice_triage.rag.answer import LocalRagService
+from voice_triage.rag.answer import (
+    LocalRagService,
+    _AnswerCandidate,
+    _select_source_focused_candidates,
+)
 from voice_triage.rag.index import build_index, init_index
 from voice_triage.rag.retrieve import SqliteRetriever
 
@@ -156,3 +160,82 @@ def test_build_index_reports_in_progress_when_db_writer_lock_is_held(tmp_path: P
         connection.execute("BEGIN IMMEDIATE")
         with pytest.raises(RuntimeError, match="Reindex already in progress"):
             build_index(kb_dir=kb_dir, index_db_path=index_db)
+
+
+def test_process_question_returns_multi_step_answer_from_single_topic(tmp_path: Path) -> None:
+    kb_dir = tmp_path / "kb"
+    kb_dir.mkdir(parents=True, exist_ok=True)
+    (kb_dir / "licensing_taxi_licence.md").write_text(
+        "\n".join(
+            [
+                "title: Taxi licence applications",
+                "tags: [licensing, taxi, licence]",
+                "summary:",
+                "- Taxi licence applications must be completed before driving passengers.",
+                "key_points:",
+                "- Check taxi driver eligibility requirements first.",
+                "- Prepare taxi licence identity and right-to-work documents.",
+                "- Complete the taxi licence application form and submit payment.",
+                "- Book and pass the required taxi knowledge and safeguarding checks.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (kb_dir / "licensing_pub_licence.md").write_text(
+        "\n".join(
+            [
+                "title: Pub alcohol premises licence",
+                "tags: [licensing, alcohol, pub]",
+                "summary:",
+                "- Pub premises licences are for alcohol sales.",
+                "key_points:",
+                "- Appoint a designated premises supervisor.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    index_db = tmp_path / "rag.db"
+    build_index(kb_dir=kb_dir, index_db_path=index_db)
+    service = LocalRagService(retriever=SqliteRetriever(index_db))
+
+    answer, metadata = service.answer("How do I get a taxi licence?")
+
+    assert metadata["used_kb"] is True
+    assert "main steps" in answer.lower()
+    assert "taxi" in answer.lower()
+    assert "pub" not in answer.lower()
+
+
+def test_source_focus_allows_multiple_sources_when_scores_are_close() -> None:
+    candidates = [
+        _AnswerCandidate(
+            score=0.91, text="a1", source="a.md", section="key_points", bullet_index=0
+        ),
+        _AnswerCandidate(
+            score=0.89, text="b1", source="b.md", section="key_points", bullet_index=0
+        ),
+        _AnswerCandidate(score=0.82, text="a2", source="a.md", section="summary", bullet_index=1),
+    ]
+
+    ranked = _select_source_focused_candidates(candidates)
+
+    assert any(candidate.source == "a.md" for candidate in ranked)
+    assert any(candidate.source == "b.md" for candidate in ranked)
+
+
+def test_source_focus_prefers_single_source_when_margin_is_large() -> None:
+    candidates = [
+        _AnswerCandidate(
+            score=0.95, text="a1", source="a.md", section="key_points", bullet_index=0
+        ),
+        _AnswerCandidate(
+            score=0.70, text="b1", source="b.md", section="key_points", bullet_index=0
+        ),
+        _AnswerCandidate(score=0.68, text="a2", source="a.md", section="summary", bullet_index=1),
+    ]
+
+    ranked = _select_source_focused_candidates(candidates)
+
+    assert ranked
+    assert all(candidate.source == "a.md" for candidate in ranked)

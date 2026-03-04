@@ -12,6 +12,7 @@ from uuid import uuid4
 from voice_triage.nlu.extractor import Extractor
 from voice_triage.nlu.schemas import ExtractionResult
 from voice_triage.rag.answer import RagService
+from voice_triage.rag.stopwords import STOPWORDS
 from voice_triage.workflows.council_tax import CouncilTaxHandler
 from voice_triage.workflows.electoral_register import ElectoralRegisterHandler
 from voice_triage.workflows.move_home import MoveHomeHandler
@@ -47,6 +48,8 @@ class ConversationState:
     current_address_verified: bool = False
     new_address_verified: bool = False
     turn_count: int = 0
+    rag_topic_terms: set[str] = field(default_factory=set)
+    rag_anchor_source: str | None = None
 
 
 @dataclass(frozen=True)
@@ -74,6 +77,47 @@ class ConversationEngine:
         "You're welcome. What else can I help with?",
         "No problem. What would you like to ask next?",
         "Glad that helped. Anything else I can help with?",
+    )
+    FOLLOW_UP_STARTERS: tuple[str, ...] = (
+        "what about",
+        "how about",
+        "and what",
+        "and how",
+        "what documents",
+        "what evidence",
+        "what do i need",
+        "do i need",
+        "what next",
+        "then what",
+        "and then",
+    )
+    FOLLOW_UP_GENERIC_TERMS: frozenset[str] = frozenset(
+        {
+            "application",
+            "applications",
+            "apply",
+            "cost",
+            "costs",
+            "document",
+            "documents",
+            "evidence",
+            "fee",
+            "fees",
+            "long",
+            "need",
+            "next",
+            "price",
+            "prices",
+            "process",
+            "requirement",
+            "requirements",
+            "step",
+            "steps",
+            "take",
+            "timeline",
+            "timescale",
+            "when",
+        }
     )
     SPOKEN_NUMBER_TOKENS: frozenset[str] = frozenset(
         {
@@ -208,7 +252,10 @@ class ConversationEngine:
             answer_text = random.choice(self.ACKNOWLEDGEMENT_RESPONSES)
             rag_meta = {"used_kb": False, "reason": "acknowledgement"}
         else:
-            answer_text, rag_meta = self.rag_service.answer(extraction.raw_text)
+            query_text = self._build_contextual_rag_query(state, extraction.raw_text)
+            answer_text, rag_meta = self.rag_service.answer(query_text)
+            rag_meta["query_used"] = query_text
+            self._update_rag_topic_context(state, extraction.raw_text, rag_meta)
         outcome = {
             "workflow": "rag_qa",
             "stage": ConversationStage.DONE.value,
@@ -223,6 +270,85 @@ class ConversationEngine:
             response_text=answer_text,
             outcome=outcome,
         )
+
+    def _build_contextual_rag_query(self, state: ConversationState, raw_text: str) -> str:
+        """Expand follow-up questions with the active topic to reduce drift across turns."""
+        normalized = " ".join(raw_text.split()).strip()
+        if not normalized or not state.rag_topic_terms:
+            return normalized
+
+        if not self._is_follow_up_without_topic(normalized, state.rag_topic_terms):
+            return normalized
+
+        topic_hint = " ".join(sorted(state.rag_topic_terms)[:6])
+        return f"{normalized}. Topic context: {topic_hint}"
+
+    def _update_rag_topic_context(
+        self, state: ConversationState, raw_text: str, rag_meta: dict[str, Any]
+    ) -> None:
+        """Update topic memory from top retrieval hit and current user wording."""
+        if not rag_meta.get("used_kb"):
+            return
+        hits = rag_meta.get("hits")
+        if not isinstance(hits, list) or not hits:
+            return
+
+        first_hit = hits[0]
+        if not isinstance(first_hit, dict):
+            return
+        source = first_hit.get("source")
+        if not isinstance(source, str) or not source.strip():
+            return
+
+        source_terms = self._topic_terms_from_source(source)
+        question_terms = self._topic_terms(raw_text)
+        merged = sorted(source_terms | question_terms)
+        state.rag_topic_terms = set(merged[:12])
+        state.rag_anchor_source = source
+
+    @classmethod
+    def _is_follow_up_without_topic(cls, text: str, topic_terms: set[str]) -> bool:
+        """Identify short follow-up turns that omit the active topic."""
+        tokens = cls._topic_terms(text)
+        if not tokens:
+            return False
+        if tokens & topic_terms:
+            return False
+
+        lowered = text.lower().strip()
+        starts_with_followup = any(
+            lowered.startswith(starter) for starter in cls.FOLLOW_UP_STARTERS
+        )
+        if starts_with_followup:
+            return not cls._has_explicit_new_topic_terms(tokens, topic_terms)
+
+        short_question = len(tokens) <= 6 and text.strip().endswith("?")
+        if not short_question:
+            return False
+        return not cls._has_explicit_new_topic_terms(tokens, topic_terms)
+
+    @classmethod
+    def _has_explicit_new_topic_terms(cls, tokens: set[str], topic_terms: set[str]) -> bool:
+        """Detect clear new-topic tokens so short questions can safely switch context."""
+        novel_terms = tokens - topic_terms
+        informative_terms = {
+            term
+            for term in novel_terms
+            if term not in cls.FOLLOW_UP_GENERIC_TERMS and len(term) > 2
+        }
+        return bool(informative_terms)
+
+    @classmethod
+    def _topic_terms_from_source(cls, source: str) -> set[str]:
+        """Extract topic terms from a chunk source file path."""
+        stem = source.rsplit("/", 1)[-1].rsplit(".", 1)[0].replace("_", " ")
+        return cls._topic_terms(stem)
+
+    @classmethod
+    def _topic_terms(cls, text: str) -> set[str]:
+        """Extract durable topic-bearing tokens from free text."""
+        tokens = cls._normalized_tokens(text)
+        return {token for token in tokens if token not in STOPWORDS and len(token) > 2}
 
     def _handle_stub_turn(
         self, state: ConversationState, extraction: ExtractionResult, workflow: str

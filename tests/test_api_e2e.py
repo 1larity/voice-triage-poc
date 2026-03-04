@@ -203,3 +203,18 @@ def test_rest_api_reindex_runtime_conflict_maps_to_409(
     monkeypatch.setattr(rag_index, "build_index", original_build_index)
     success = client.post("/api/v1/reindex")
     assert success.status_code == 200
+
+
+def test_rest_api_reindex_first_call_not_limited_when_monotonic_low(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _configure_test_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("VOICE_TRIAGE_REINDEX_MIN_INTERVAL_SECONDS", "60")
+
+    import voice_triage.http.rest as rest_module
+
+    monkeypatch.setattr(rest_module.time, "monotonic", lambda: 5.0)
+    client = TestClient(create_rest_app())
+    first = client.post("/api/v1/reindex")
+
+    assert first.status_code == 200
