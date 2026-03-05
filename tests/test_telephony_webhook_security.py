@@ -186,6 +186,19 @@ async def test_discord_hmac_validation_requires_signature_header() -> None:
 
 
 @pytest.mark.asyncio
+async def test_ringcentral_validation_requires_configured_secret() -> None:
+    """RingCentral validation should fail closed when no webhook secret is set."""
+    provider = RingCentralProvider(TelephonyConfig(provider_name="ringcentral"))
+
+    result = await provider.validate_webhook(
+        headers={"Verification-Token": "token"},
+        body=b"{}",
+        path="/telephony/ringcentral/voice",
+    )
+    assert result is False
+
+
+@pytest.mark.asyncio
 async def test_teams_validation_token_is_echoed_from_query_param() -> None:
     """Webhook handler should echo Teams validation token challenge."""
     registry = TelephonyRegistry()
@@ -565,6 +578,26 @@ async def test_status_cleanup_uses_provider_specific_nested_fields() -> None:
     assert response.status_code == 200
     assert "route-call" not in handler._call_sessions
     assert "teams-call-1" not in handler._call_sessions
+
+
+@pytest.mark.asyncio
+async def test_status_cleanup_works_without_route_call_id() -> None:
+    """Status callbacks without call-id route params should still clean terminal sessions."""
+    registry = TelephonyRegistry()
+    registry.register(_HappyInboundProvider(TelephonyConfig(provider_name="teams")))
+    handler = TelephonyWebhookHandler(registry=registry)
+    handler._call_sessions["teams-call-2"] = "teams-session"
+
+    request = _make_request(
+        path="/telephony/teams/callback",
+        body=(
+            b'{"value":[{"resourceData":{"state":"disconnected","id":"teams-call-2"}}]}'
+        ),
+    )
+    response = await handler.handle_call_status_auto("teams", request)
+
+    assert response.status_code == 200
+    assert "teams-call-2" not in handler._call_sessions
 
 
 @pytest.mark.asyncio

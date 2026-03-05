@@ -169,6 +169,10 @@ def test_create_rest_app_mounts_telephony_routes(monkeypatch: pytest.MonkeyPatch
     assert "/telephony/providers" in paths
     assert "/telephony/capabilities" in paths
     assert "/telephony/{provider_name}/voice" in paths
+    assert "/telephony/{provider_name}/status" in paths
+    assert "/telephony/twilio/status" in paths
+    assert "/telephony/teams/callback" in paths
+    assert "/telephony/teams/notification" in paths
 
 
 def test_create_web_app_mounts_telephony_routes(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -181,3 +185,7 @@ def test_create_web_app_mounts_telephony_routes(monkeypatch: pytest.MonkeyPatch)
     assert "/telephony/providers" in paths
     assert "/telephony/capabilities" in paths
     assert "/telephony/{provider_name}/voice" in paths
+    assert "/telephony/{provider_name}/status" in paths
+    assert "/telephony/twilio/status" in paths
+    assert "/telephony/teams/callback" in paths
+    assert "/telephony/teams/notification" in paths

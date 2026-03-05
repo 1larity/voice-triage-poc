@@ -846,7 +846,7 @@ class TelephonyWebhookHandler:
         call_id: str,
         request: Request,
     ) -> Response:
-        """Handle call status updates.
+        """Handle call status updates with route-provided call ID.
 
         Args:
             provider_name: Name of the telephony provider.
@@ -856,6 +856,34 @@ class TelephonyWebhookHandler:
         Returns:
             Acknowledgment response.
         """
+        return await self._handle_call_status_request(
+            provider_name=provider_name,
+            request=request,
+            route_call_id=call_id,
+        )
+
+    async def handle_call_status_auto(
+        self,
+        provider_name: str,
+        request: Request,
+    ) -> Response:
+        """Handle call status updates without route-provided call ID.
+
+        The call identifier is resolved from provider payload fields.
+        """
+        return await self._handle_call_status_request(
+            provider_name=provider_name,
+            request=request,
+            route_call_id=None,
+        )
+
+    async def _handle_call_status_request(
+        self,
+        provider_name: str,
+        request: Request,
+        route_call_id: str | None,
+    ) -> Response:
+        """Shared status-handler implementation for routed and unrouted callbacks."""
         provider = self.registry.get(provider_name)
         if not provider:
             raise HTTPException(status_code=400, detail=f"Unknown provider: {provider_name}")
@@ -881,17 +909,23 @@ class TelephonyWebhookHandler:
 
         status = self._extract_provider_status(provider_name, data)
         payload_call_id = self._extract_provider_call_id(provider_name, data)
-        if payload_call_id and payload_call_id != call_id:
+        if route_call_id and payload_call_id and payload_call_id != route_call_id:
             logger.info(
-                f"Call {call_id} status update: {status} "
+                f"Call {route_call_id} status update: {status} "
                 f"(payload_call_id: {payload_call_id})"
             )
+        elif route_call_id:
+            logger.info(f"Call {route_call_id} status update: {status}")
+        elif payload_call_id:
+            logger.info(f"Call {payload_call_id} status update: {status}")
         else:
-            logger.info(f"Call {call_id} status update: {status}")
+            logger.info(f"Provider {provider_name} status update: {status} (missing call_id)")
 
         # Clean up sessions on terminal status, using both route and payload call IDs.
         if self._is_terminal_status(status):
-            cleanup_ids = {call_id}
+            cleanup_ids: set[str] = set()
+            if route_call_id:
+                cleanup_ids.add(route_call_id)
             if payload_call_id:
                 cleanup_ids.add(payload_call_id)
             for cleanup_id in cleanup_ids:
@@ -978,6 +1012,11 @@ def create_telephony_router(
         """Handle Twilio status callback."""
         return await handler.handle_call_status("twilio", call_id, request)
 
+    @router.post("/twilio/status")
+    async def twilio_status_no_call_id(request: Request) -> Response:
+        """Handle Twilio status callback without route call ID."""
+        return await handler.handle_call_status_auto("twilio", request)
+
     # Vonage/Nexmo endpoints
     @router.post("/vonage/voice")
     async def vonage_voice(
@@ -1040,6 +1079,16 @@ def create_telephony_router(
         """Handle BT voice webhook."""
         return await handler.handle_inbound_call("bt", request, background_tasks)
 
+    @router.post("/teams/callback")
+    async def teams_callback(request: Request) -> Response:
+        """Handle Teams callback webhooks without route call ID."""
+        return await handler.handle_call_status_auto("teams", request)
+
+    @router.post("/teams/notification")
+    async def teams_notification(request: Request) -> Response:
+        """Handle Teams notification webhooks without route call ID."""
+        return await handler.handle_call_status_auto("teams", request)
+
     # Generic provider routes for providers that follow /{provider}/voice style
     @router.post("/{provider_name}/voice")
     async def provider_voice(
@@ -1068,6 +1117,14 @@ def create_telephony_router(
         """Handle status webhooks for any registered provider."""
         return await handler.handle_call_status(provider_name, call_id, request)
 
+    @router.post("/{provider_name}/status")
+    async def provider_status_no_call_id(
+        provider_name: str,
+        request: Request,
+    ) -> Response:
+        """Handle status webhooks without route call IDs for any provider."""
+        return await handler.handle_call_status_auto(provider_name, request)
+
     @router.post("/{provider_name}/event/{call_id}")
     async def provider_event(
         provider_name: str,
@@ -1076,6 +1133,14 @@ def create_telephony_router(
     ) -> Response:
         """Handle event-style status webhooks for any registered provider."""
         return await handler.handle_call_status(provider_name, call_id, request)
+
+    @router.post("/{provider_name}/event")
+    async def provider_event_no_call_id(
+        provider_name: str,
+        request: Request,
+    ) -> Response:
+        """Handle event-style status webhooks without route call IDs."""
+        return await handler.handle_call_status_auto(provider_name, request)
 
     # Health check
     @router.get("/health")

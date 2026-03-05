@@ -133,7 +133,7 @@ class RingCentralProvider(TelephonyProvider):
         webhook_secret = self.config.extra.get("webhook_secret")
         if not webhook_secret:
             logger.warning("No webhook_secret configured for RingCentral")
-            return True  # Allow if no secret configured
+            return False
 
         if not verification_token:
             logger.warning("Missing RingCentral verification token")
