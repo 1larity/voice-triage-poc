@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from importlib import import_module
 from typing import TYPE_CHECKING, TypeVar
 
 if TYPE_CHECKING:
@@ -11,6 +12,9 @@ if TYPE_CHECKING:
 # Global registry of provider factories
 _PROVIDER_REGISTRY: dict[str, type[TelephonyProvider]] = {}
 """Registry mapping provider names to their implementation classes."""
+
+_PROVIDERS_IMPORTED = False
+"""Whether built-in provider modules have been imported."""
 
 T = TypeVar("T", bound="TelephonyProvider")
 """Generic type variable for telephony provider classes."""
@@ -39,6 +43,31 @@ def register_provider(name: str) -> Callable[[type[T]], type[T]]:
     return decorator
 
 
+def ensure_builtin_providers_registered() -> None:
+    """Import built-in provider modules so decorator registration runs."""
+    global _PROVIDERS_IMPORTED
+    if _PROVIDERS_IMPORTED:
+        return
+
+    provider_modules = (
+        "voice_triage.telephony.providers.twilio.provider",
+        "voice_triage.telephony.providers.vonage.provider",
+        "voice_triage.telephony.providers.sip.provider",
+        "voice_triage.telephony.providers.avaya.provider",
+        "voice_triage.telephony.providers.avaya.aes",
+        "voice_triage.telephony.providers.avaya.ip_office",
+        "voice_triage.telephony.providers.ringcentral.provider",
+        "voice_triage.telephony.providers.zoom.provider",
+        "voice_triage.telephony.providers.teams.provider",
+        "voice_triage.telephony.providers.circleloop.provider",
+        "voice_triage.telephony.providers.nfon.provider",
+        "voice_triage.telephony.providers.discord.provider",
+    )
+    for module_path in provider_modules:
+        import_module(module_path)
+    _PROVIDERS_IMPORTED = True
+
+
 def get_provider(config: TelephonyConfig) -> TelephonyProvider:
     """Get a telephony provider instance by name.
 
@@ -51,6 +80,7 @@ def get_provider(config: TelephonyConfig) -> TelephonyProvider:
     Raises:
         ValueError: If the provider is not registered.
     """
+    ensure_builtin_providers_registered()
     provider_name = config.provider_name.lower()
 
     if provider_name not in _PROVIDER_REGISTRY:
@@ -70,6 +100,7 @@ def list_providers() -> list[str]:
     Returns:
         List of provider names.
     """
+    ensure_builtin_providers_registered()
     return sorted(_PROVIDER_REGISTRY.keys())
 
 

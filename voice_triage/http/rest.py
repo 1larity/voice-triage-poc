@@ -20,6 +20,11 @@ from voice_triage.nlu.extractor import HeuristicExtractor
 from voice_triage.nlu.schemas import CallSessionRecord
 from voice_triage.rag.factory import create_rag_service
 from voice_triage.store.db import init_db, save_session
+from voice_triage.telephony.config import load_telephony_settings
+from voice_triage.telephony.webhooks import (
+    build_telephony_handler,
+    create_telephony_router,
+)
 from voice_triage.tts.piper import PiperClient, PiperUnavailable
 from voice_triage.util.config import Settings, load_settings
 from voice_triage.util.logging import setup_logging
@@ -347,6 +352,25 @@ class TriageApi:
         return audio_path
 
 
+class TelephonyConversationAdapter:
+    """Adapter exposing async hooks used by telephony webhooks."""
+
+    def __init__(self, engine: ConversationEngine) -> None:
+        """Initialize adapter."""
+        self._engine = engine
+
+    async def create_session(self, metadata: dict[str, Any] | None = None) -> str:
+        """Create a new conversation session."""
+        _session_metadata = metadata or {}
+        session_id, _assistant_message = self._engine.create_session()
+        return session_id
+
+    async def process_turn(self, session_id: str, transcript: str) -> str:
+        """Process a conversation turn and return assistant text."""
+        turn_result = self._engine.process_turn(session_id=session_id, transcript=transcript)
+        return turn_result.response_text
+
+
 def initialize_runtime(settings: Settings | None = None) -> ApiRuntime:
     """Initialize runtime."""
     resolved_settings = settings or load_settings()
@@ -387,6 +411,22 @@ def initialize_runtime(settings: Settings | None = None) -> ApiRuntime:
         default_voice_id=default_voice_id,
         engine=engine,
     )
+
+
+def _include_telephony_router(app: FastAPI, runtime: ApiRuntime) -> None:
+    """Attach telephony webhook routes and register configured providers."""
+    telephony_settings = load_telephony_settings()
+    provider_configs = (
+        telephony_settings.to_provider_configs() if telephony_settings.enabled else {}
+    )
+    conversation_handler = TelephonyConversationAdapter(runtime.engine)
+    handler = build_telephony_handler(
+        conversation_handler=conversation_handler,
+        provider_configs=provider_configs,
+        webhook_rate_limit_per_minute=telephony_settings.webhook_rate_limit_per_minute,
+        webhook_replay_window_seconds=telephony_settings.webhook_replay_window_seconds,
+    )
+    app.include_router(create_telephony_router(handler))
 
 
 def create_api_router(
@@ -478,6 +518,7 @@ def create_rest_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(create_api_router(api, prefix="/api/v1", include_in_schema=True))
+    _include_telephony_router(app, runtime)
     return app
 
 

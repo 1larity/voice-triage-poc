@@ -1,0 +1,40 @@
+{
+  "provider": "twilio",
+  "config": {
+    "account_sid": "AC123",
+    "auth_token": "twilio-auth-token",
+    "webhook_base_url": "https://example.com"
+  },
+  "cases": [
+    {
+      "name": "valid_twilio_signature",
+      "path": "/telephony/twilio/voice",
+      "body": "CallSid=CA123&From=%2B447700900001&To=%2B447700900002",
+      "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      "signature": {
+        "type": "twilio_sha1_base64",
+        "header": "X-Twilio-Signature",
+        "secret": "twilio-auth-token",
+        "base_url": "https://example.com"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "invalid_twilio_signature",
+      "path": "/telephony/twilio/voice",
+      "body": "CallSid=CA123&From=%2B447700900001&To=%2B447700900002",
+      "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      "signature": {
+        "type": "twilio_sha1_base64",
+        "header": "X-Twilio-Signature",
+        "secret": "wrong-secret",
+        "base_url": "https://example.com"
+      },
+      "expected_valid": false
+    }
+  ]
+}

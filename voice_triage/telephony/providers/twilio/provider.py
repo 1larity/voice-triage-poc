@@ -29,6 +29,7 @@ from voice_triage.telephony.providers.twilio.response import (
     generate_full_response,
 )
 from voice_triage.telephony.registry import register_provider
+from voice_triage.telephony.shared.auth import get_header
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +93,7 @@ class TwilioProvider(TelephonyProvider):
         Returns:
             True if signature is valid.
         """
-        signature = headers.get("X-Twilio-Signature")
+        signature = get_header(headers, "X-Twilio-Signature")
         if not signature:
             logger.warning("Missing X-Twilio-Signature header")
             return False

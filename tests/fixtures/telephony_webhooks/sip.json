@@ -1,0 +1,35 @@
+{
+  "provider": "sip",
+  "config": {
+    "extra": {
+      "webhook_secret": "sip-shared-secret",
+      "allowed_webhook_ips": [
+        "203.0.113.0/24"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "name": "valid_sip_secret_and_ip",
+      "path": "/telephony/sip/voice",
+      "body": "{\"call_id\":\"sip-1\"}",
+      "headers": {
+        "Content-Type": "application/json",
+        "X-SIP-Secret": "sip-shared-secret",
+        "X-Source-IP": "203.0.113.10"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "invalid_sip_source_ip",
+      "path": "/telephony/sip/voice",
+      "body": "{\"call_id\":\"sip-2\"}",
+      "headers": {
+        "Content-Type": "application/json",
+        "X-SIP-Secret": "sip-shared-secret",
+        "X-Source-IP": "198.51.100.20"
+      },
+      "expected_valid": false
+    }
+  ]
+}

@@ -325,3 +325,18 @@ class TelephonyProvider(ABC):
         """
         # Default to JSON - override in subclasses
         return "application/json"
+
+    def get_validation_response(self, headers: dict[str, str]) -> str | None:
+        """Return provider-specific webhook validation response when required.
+
+        Some providers perform webhook verification challenges where the server
+        must echo a token from the incoming request.
+
+        Args:
+            headers: HTTP headers from the request.
+
+        Returns:
+            Validation response body when a challenge is present, else None.
+        """
+        del headers
+        return None

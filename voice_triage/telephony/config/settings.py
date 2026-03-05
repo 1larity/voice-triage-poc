@@ -86,6 +86,12 @@ class TelephonySettings:
     max_call_duration_seconds: int = 3600
     """Maximum call duration in seconds (default: 1 hour)."""
 
+    webhook_rate_limit_per_minute: int = 120
+    """Per-provider/source-IP webhook request limit per minute."""
+
+    webhook_replay_window_seconds: int = 300
+    """Window for webhook replay detection and timestamp freshness checks."""
+
     @classmethod
     def from_env(cls) -> TelephonySettings:
         """Load all telephony settings from environment variables.
@@ -117,6 +123,12 @@ class TelephonySettings:
             speech_language=os.getenv("TELEPHONY_SPEECH_LANGUAGE", "en-GB"),
             speech_timeout=int(os.getenv("TELEPHONY_SPEECH_TIMEOUT", "5")),
             max_call_duration_seconds=int(os.getenv("TELEPHONY_MAX_CALL_DURATION_SECONDS", "3600")),
+            webhook_rate_limit_per_minute=int(
+                os.getenv("TELEPHONY_WEBHOOK_RATE_LIMIT_PER_MINUTE", "120")
+            ),
+            webhook_replay_window_seconds=int(
+                os.getenv("TELEPHONY_WEBHOOK_REPLAY_WINDOW_SECONDS", "300")
+            ),
         )
 
     @classmethod
@@ -157,6 +169,8 @@ class TelephonySettings:
             speech_language=data.get("speech_language", "en-GB"),
             speech_timeout=data.get("speech_timeout", 5),
             max_call_duration_seconds=data.get("max_call_duration_seconds", 3600),
+            webhook_rate_limit_per_minute=data.get("webhook_rate_limit_per_minute", 120),
+            webhook_replay_window_seconds=data.get("webhook_replay_window_seconds", 300),
         )
 
     def get_configured_providers(self) -> list[str]:
@@ -198,11 +212,10 @@ class TelephonySettings:
         Returns:
             Dictionary mapping provider names to their configurations.
         """
-        configs: dict[str, Any] = {}
+        configs: dict[str, dict[str, Any]] = {}
 
         if self.twilio.is_configured():
             configs["twilio"] = {
-                "provider_name": "twilio",
                 "account_sid": self.twilio.account_sid,
                 "auth_token": self.twilio.auth_token,
                 "webhook_base_url": self.twilio.webhook_base_url,
@@ -211,20 +224,24 @@ class TelephonySettings:
 
         if self.vonage.is_configured():
             configs["vonage"] = {
-                "provider_name": "vonage",
                 "api_key": self.vonage.api_key,
                 "api_secret": self.vonage.api_secret,
                 "webhook_base_url": self.vonage.webhook_base_url,
                 "default_from_number": self.vonage.default_from_number,
+                "webhook_secret": self.vonage.webhook_secret,
                 "extra": {
                     "application_id": self.vonage.application_id,
                     "private_key_path": self.vonage.private_key_path,
+                    "webhook_secret": self.vonage.webhook_secret,
                 },
+            }
+            configs["nexmo"] = {
+                **configs["vonage"],
+                "extra": dict(configs["vonage"].get("extra", {})),
             }
 
         if self.sip.is_configured():
             configs["sip"] = {
-                "provider_name": "sip",
                 "webhook_base_url": self.sip.webhook_base_url,
                 "default_from_number": self.sip.default_from_number,
                 "extra": {
@@ -241,7 +258,6 @@ class TelephonySettings:
 
         if self.gamma.is_configured():
             configs["gamma"] = {
-                "provider_name": "gamma",
                 "webhook_base_url": self.gamma.webhook_base_url,
                 "default_from_number": self.gamma.default_from_number,
                 "extra": {
@@ -258,7 +274,6 @@ class TelephonySettings:
 
         if self.bt.is_configured():
             configs["bt"] = {
-                "provider_name": "bt",
                 "webhook_base_url": self.bt.webhook_base_url,
                 "default_from_number": self.bt.default_from_number,
                 "extra": {
@@ -274,9 +289,79 @@ class TelephonySettings:
                 },
             }
 
+        if self.ringcentral.is_configured():
+            configs["ringcentral"] = {
+                "api_key": self.ringcentral.client_id,
+                "api_secret": self.ringcentral.client_secret,
+                "account_sid": self.ringcentral.account_id,
+                "webhook_base_url": self.ringcentral.webhook_base_url,
+                "default_from_number": self.ringcentral.default_from_number,
+                "extra": {
+                    "account_id": self.ringcentral.account_id,
+                    "jwt_token": self.ringcentral.jwt_token,
+                    "username": self.ringcentral.username,
+                    "password": self.ringcentral.password,
+                    "extension": self.ringcentral.extension,
+                    "webhook_secret": self.ringcentral.webhook_secret,
+                    "use_uk_endpoint": self.ringcentral.use_uk_endpoint,
+                },
+            }
+
+        if self.zoom.is_configured():
+            configs["zoom"] = {
+                "api_key": self.zoom.client_id,
+                "api_secret": self.zoom.client_secret,
+                "account_sid": self.zoom.account_id,
+                "webhook_base_url": self.zoom.webhook_base_url,
+                "default_from_number": self.zoom.default_from_number,
+                "extra": {
+                    "account_id": self.zoom.account_id,
+                    "webhook_secret": self.zoom.webhook_secret,
+                },
+            }
+
+        if self.teams.is_configured():
+            configs["teams"] = {
+                "api_key": self.teams.client_id,
+                "api_secret": self.teams.client_secret,
+                "account_sid": self.teams.tenant_id,
+                "webhook_base_url": self.teams.webhook_base_url,
+                "default_from_number": self.teams.default_from_number,
+                "extra": {
+                    "tenant_id": self.teams.tenant_id,
+                    "sip_domain": self.teams.sip_domain,
+                    "sbc_fqdn": self.teams.sbc_fqdn,
+                    "webhook_secret": self.teams.webhook_secret,
+                },
+            }
+
+        if self.circleloop.is_configured():
+            configs["circleloop"] = {
+                "api_key": self.circleloop.api_key,
+                "api_secret": self.circleloop.api_secret,
+                "webhook_base_url": self.circleloop.webhook_base_url,
+                "default_from_number": self.circleloop.default_from_number,
+                "extra": {
+                    "webhook_secret": self.circleloop.webhook_secret,
+                },
+            }
+
+        if self.nfon.is_configured():
+            configs["nfon"] = {
+                "api_key": self.nfon.client_id,
+                "api_secret": self.nfon.client_secret,
+                "account_sid": self.nfon.account_id,
+                "webhook_base_url": self.nfon.webhook_base_url,
+                "default_from_number": self.nfon.default_from_number,
+                "extra": {
+                    "tenant_id": self.nfon.account_id,
+                    "webhook_secret": self.nfon.webhook_secret,
+                    "use_uk_endpoint": self.nfon.use_uk_endpoint,
+                },
+            }
+
         if self.discord.is_configured():
             configs["discord"] = {
-                "provider_name": "discord",
                 "api_key": self.discord.bot_token,
                 "webhook_base_url": self.discord.webhook_base_url,
                 "webhook_secret": self.discord.webhook_secret,
@@ -291,20 +376,27 @@ class TelephonySettings:
 
         if self.avaya.is_configured():
             configs["avaya"] = {
-                "provider_name": "avaya",
-                "server_host": self.avaya.server_host,
-                "server_port": self.avaya.server_port,
-                "username": self.avaya.username,
-                "password": self.avaya.password,
-                "extension": self.avaya.extension,
                 "webhook_base_url": self.avaya.webhook_base_url,
                 "webhook_secret": self.avaya.webhook_secret,
                 "default_from_number": self.avaya.default_from_number,
                 "extra": {
+                    "server_host": self.avaya.server_host,
+                    "server_port": self.avaya.server_port,
+                    "username": self.avaya.username,
+                    "password": self.avaya.password,
+                    "extension": self.avaya.extension,
                     "use_ssl": self.avaya.use_ssl,
                     "aes_enabled": self.avaya.aes_enabled,
                     "ip_office_mode": self.avaya.ip_office_mode,
                 },
+            }
+            configs["avaya_aes"] = {
+                **configs["avaya"],
+                "extra": dict(configs["avaya"].get("extra", {})),
+            }
+            configs["avaya_ip_office"] = {
+                **configs["avaya"],
+                "extra": dict(configs["avaya"].get("extra", {})),
             }
 
         return configs
@@ -337,6 +429,10 @@ def load_telephony_settings(
         settings.enabled = env_settings.enabled
     if os.getenv("TELEPHONY_DEFAULT_PROVIDER") is not None:
         settings.default_provider = env_settings.default_provider
+    if os.getenv("TELEPHONY_WEBHOOK_RATE_LIMIT_PER_MINUTE") is not None:
+        settings.webhook_rate_limit_per_minute = env_settings.webhook_rate_limit_per_minute
+    if os.getenv("TELEPHONY_WEBHOOK_REPLAY_WINDOW_SECONDS") is not None:
+        settings.webhook_replay_window_seconds = env_settings.webhook_replay_window_seconds
 
     # Merge provider configs
     if env_settings.twilio.is_configured():
@@ -349,5 +445,19 @@ def load_telephony_settings(
         settings.gamma = env_settings.gamma
     if env_settings.bt.is_configured():
         settings.bt = env_settings.bt
+    if env_settings.ringcentral.is_configured():
+        settings.ringcentral = env_settings.ringcentral
+    if env_settings.zoom.is_configured():
+        settings.zoom = env_settings.zoom
+    if env_settings.teams.is_configured():
+        settings.teams = env_settings.teams
+    if env_settings.circleloop.is_configured():
+        settings.circleloop = env_settings.circleloop
+    if env_settings.nfon.is_configured():
+        settings.nfon = env_settings.nfon
+    if env_settings.discord.is_configured():
+        settings.discord = env_settings.discord
+    if env_settings.avaya.is_configured():
+        settings.avaya = env_settings.avaya
 
     return settings

@@ -234,7 +234,7 @@ def generate_teams_response(
     # This JSON structure is for documentation/reference
     response: dict[str, Any] = {
         "session_id": session_id,
-        "actions": list[dict[str, Any]],
+        "actions": [],
     }
 
     if welcome_message:

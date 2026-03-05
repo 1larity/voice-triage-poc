@@ -29,6 +29,7 @@ from voice_triage.telephony.providers.circleloop.response import (
     generate_call_control_response,
 )
 from voice_triage.telephony.registry import register_provider
+from voice_triage.telephony.shared.auth import get_header
 
 logger = logging.getLogger(__name__)
 
@@ -106,9 +107,7 @@ class CircleLoopProvider(TelephonyProvider):
         Returns:
             True if signature is valid.
         """
-        signature = headers.get("X-CircleLoop-Signature")
-        if not signature:
-            signature = headers.get("x-circleloop-signature")
+        signature = get_header(headers, "X-CircleLoop-Signature")
 
         if not signature:
             logger.warning("Missing CircleLoop webhook signature")
@@ -369,6 +368,21 @@ class CircleLoopProvider(TelephonyProvider):
             "Consider using pre-recorded audio with play_audio()."
         )
         return False
+
+    def extract_transcript(self, data: dict[str, Any]) -> str:
+        """Extract transcript text from CircleLoop webhook payloads."""
+        if not isinstance(data, dict):
+            return ""
+
+        for key in ("transcript", "speech", "text", "speechResult"):
+            value = data.get(key)
+            if isinstance(value, str):
+                return value
+            if isinstance(value, dict):
+                nested = value.get("text") or value.get("transcript")
+                if isinstance(nested, str):
+                    return nested
+        return ""
 
     def get_webhook_path(self, event_type: str) -> str:
         """Get the webhook path for a specific event type.

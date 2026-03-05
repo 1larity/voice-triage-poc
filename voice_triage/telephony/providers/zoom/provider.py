@@ -27,6 +27,7 @@ from voice_triage.telephony.providers.zoom.response import (
     generate_call_control_response,
 )
 from voice_triage.telephony.registry import register_provider
+from voice_triage.telephony.shared.auth import get_header
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +106,7 @@ class ZoomPhoneProvider(TelephonyProvider):
             True if signature is valid.
         """
         # Zoom sends signature in x-zm-signature header
-        signature = headers.get("x-zm-signature") or headers.get("X-Zm-Signature")
+        signature = get_header(headers, "x-zm-signature")
 
         if not signature:
             logger.warning("Missing Zoom webhook signature")
@@ -292,6 +293,28 @@ class ZoomPhoneProvider(TelephonyProvider):
             "Consider using pre-recorded audio with play_audio() instead."
         )
         return False
+
+    def extract_transcript(self, data: dict[str, Any]) -> str:
+        """Extract transcript text from Zoom webhook payloads."""
+        if not isinstance(data, dict):
+            return ""
+
+        payload = data.get("payload", data)
+        if isinstance(payload, dict):
+            payload_object = payload.get("object", payload)
+        else:
+            payload_object = {}
+
+        if isinstance(payload_object, dict):
+            for key in ("transcript", "speech", "text", "speechResult"):
+                value = payload_object.get(key)
+                if isinstance(value, str):
+                    return value
+                if isinstance(value, dict):
+                    nested = value.get("text") or value.get("transcript")
+                    if isinstance(nested, str):
+                        return nested
+        return ""
 
     def get_webhook_path(self, event_type: str) -> str:
         """Get the webhook path for a specific event type.

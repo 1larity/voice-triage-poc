@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import logging
 import uuid
 from collections.abc import AsyncIterator
@@ -28,6 +29,7 @@ from voice_triage.telephony.providers.sip.response import (
     generate_call_control_response,
 )
 from voice_triage.telephony.registry import register_provider
+from voice_triage.telephony.shared.auth import get_bearer_token, get_header
 
 logger = logging.getLogger(__name__)
 
@@ -115,20 +117,66 @@ class SIPProvider(TelephonyProvider):
         Returns:
             True if the webhook is valid.
         """
+        del body, path
         # Check for shared secret if configured
         shared_secret = self.config.extra.get("webhook_secret")
         if shared_secret:
-            provided_secret = headers.get("X-SIP-Secret", "")
-            return provided_secret == shared_secret
+            provided_secret = get_header(headers, "X-SIP-Secret")
+            if not hmac.compare_digest(provided_secret, shared_secret):
+                return False
 
         # Check for IP whitelist if configured
         allowed_ips = self.config.extra.get("allowed_webhook_ips", [])
         if allowed_ips:
-            # In a real implementation, you'd check the source IP
-            pass
+            source_ip = self._extract_source_ip(headers)
+            if not source_ip:
+                logger.warning("SIP webhook rejected: missing source IP for allowlist")
+                return False
+            if not self._is_ip_allowed(source_ip, allowed_ips):
+                logger.warning(
+                    f"SIP webhook rejected: source IP {source_ip} not in allowlist"
+                )
+                return False
 
         # Default: accept if no validation configured
         return True
+
+    def _extract_source_ip(self, headers: dict[str, str]) -> str:
+        """Extract webhook source IP from forwarded or direct headers."""
+        forwarded = get_header(headers, "X-Forwarded-For")
+        if forwarded:
+            first = forwarded.split(",")[0].strip()
+            if first:
+                return first
+
+        real_ip = get_header(headers, "X-Real-IP")
+        if real_ip:
+            return real_ip.strip()
+
+        return get_header(headers, "X-Source-IP").strip()
+
+    def _is_ip_allowed(self, source_ip: str, allowed_ips: list[str]) -> bool:
+        """Check whether source IP matches explicit IPs or CIDR ranges."""
+        try:
+            source = ipaddress.ip_address(source_ip)
+        except ValueError:
+            return False
+
+        for item in allowed_ips:
+            candidate = item.strip()
+            if not candidate:
+                continue
+            try:
+                if "/" in candidate:
+                    network = ipaddress.ip_network(candidate, strict=False)
+                    if source in network:
+                        return True
+                elif source == ipaddress.ip_address(candidate):
+                    return True
+            except ValueError:
+                logger.warning(f"Skipping invalid allowed SIP IP entry: {candidate}")
+                continue
+        return False
 
     async def parse_inbound_call(
         self,
@@ -385,7 +433,7 @@ class GammaProvider(SIPProvider):
     ) -> bool:
         """Validate Gamma-specific webhook signature."""
         # Gamma uses a specific header for webhook validation
-        gamma_signature = headers.get("X-Gamma-Signature", "")
+        gamma_signature = get_header(headers, "X-Gamma-Signature")
 
         if not gamma_signature:
             # Fall back to base SIP validation
@@ -433,16 +481,19 @@ class BTProvider(SIPProvider):
     ) -> bool:
         """Validate BT-specific webhook signature."""
         # BT uses OAuth-style tokens for webhook authentication
-        auth_header = headers.get("Authorization", "")
+        auth_header = get_header(headers, "Authorization")
 
         if not auth_header:
             return await super().validate_webhook(headers, body, path)
 
         # Validate Bearer token
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
+        token = get_bearer_token(auth_header)
+        if token:
             expected_token = self.config.extra.get("webhook_token", "")
-            return token == expected_token
+            if not expected_token:
+                logger.warning("BT webhook token missing from configuration")
+                return False
+            return hmac.compare_digest(token, expected_token)
 
         return False
 

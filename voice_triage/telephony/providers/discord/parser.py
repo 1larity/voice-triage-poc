@@ -6,7 +6,6 @@ and voice events.
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import hmac
 import json
@@ -120,25 +119,29 @@ def parse_inbound_interaction(
     )
 
 
-def validate_hmac_signature(body: bytes, secret: str) -> bool:
+def validate_hmac_signature(signature: str, body: bytes, secret: str) -> bool:
     """Validate HMAC signature for Discord webhooks.
 
     Args:
+        signature: Signature from X-Discord-Signature header.
         body: Raw request body.
         secret: Webhook secret.
 
     Returns:
-        True if valid (simplified implementation).
+        True if valid.
     """
-    # Discord uses simple HMAC-SHA256 for some webhooks
-    _computed = hmac.new(
+    if not signature or not secret:
+        return False
+
+    computed = hmac.new(
         secret.encode("utf-8"),
         body,
         hashlib.sha256,
     ).hexdigest()
-
-    # Check if signature is in headers (would need to be passed)
-    return True  # Simplified for now
+    normalized = signature
+    if normalized.lower().startswith("sha256="):
+        normalized = normalized.split("=", 1)[1]
+    return hmac.compare_digest(computed, normalized.lower())
 
 
 async def validate_ed25519_signature(
@@ -167,14 +170,11 @@ async def validate_ed25519_signature(
         message = timestamp.encode() + body
 
         # Verify signature
-        verify_key = nacl.signing.VerifyKey(
-            bytes.fromhex(public_key),
-            encoder=nacl.encoding.HexEncoder,
-        )
+        verify_key = nacl.signing.VerifyKey(public_key, encoder=nacl.encoding.HexEncoder)
 
         verify_key.verify(
             message,
-            base64.b64decode(signature),
+            bytes.fromhex(signature),
         )
         return True
 

@@ -40,6 +40,12 @@ class RingCentralConfig:
     default_from_number: str | None = None
     """Default phone number for outbound calls."""
 
+    account_id: str | None = None
+    """RingCentral account identifier."""
+
+    webhook_secret: str | None = None
+    """Secret for webhook signature validation."""
+
     use_uk_endpoint: bool = True
     """Whether to use UK/EU API endpoints."""
 
@@ -57,8 +63,10 @@ class RingCentralConfig:
             username=os.getenv("RINGCENTRAL_USERNAME"),
             extension=os.getenv("RINGCENTRAL_EXTENSION"),
             password=os.getenv("RINGCENTRAL_PASSWORD"),
+            account_id=os.getenv("RINGCENTRAL_ACCOUNT_ID"),
             webhook_base_url=os.getenv("RINGCENTRAL_WEBHOOK_BASE_URL"),
             default_from_number=os.getenv("RINGCENTRAL_DEFAULT_FROM_NUMBER"),
+            webhook_secret=os.getenv("RINGCENTRAL_WEBHOOK_SECRET"),
             use_uk_endpoint=_env_bool("RINGCENTRAL_USE_UK_ENDPOINT", default=True),
         )
 

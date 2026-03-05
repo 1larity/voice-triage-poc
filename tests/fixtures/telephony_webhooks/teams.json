@@ -1,0 +1,41 @@
+{
+  "provider": "teams",
+  "config": {
+    "api_key": "teams-client-id",
+    "api_secret": "teams-client-secret",
+    "extra": {
+      "tenant_id": "tenant-id",
+      "webhook_secret": "teams-client-state"
+    }
+  },
+  "cases": [
+    {
+      "name": "valid_teams_client_state",
+      "path": "/telephony/teams/voice",
+      "body": "{\"value\":[{\"clientState\":\"teams-client-state\"}]}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "invalid_teams_client_state",
+      "path": "/telephony/teams/voice",
+      "body": "{\"value\":[{\"clientState\":\"wrong-client-state\"}]}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "expected_valid": false
+    },
+    {
+      "name": "teams_validation_token_challenge",
+      "path": "/telephony/teams/voice",
+      "body": "{}",
+      "headers": {
+        "Content-Type": "application/json",
+        "validationtoken": "abc123"
+      },
+      "expected_valid": true
+    }
+  ]
+}

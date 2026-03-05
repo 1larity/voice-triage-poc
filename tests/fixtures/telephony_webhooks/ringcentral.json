@@ -1,0 +1,33 @@
+{
+  "provider": "ringcentral",
+  "config": {
+    "api_key": "rc-client-id",
+    "api_secret": "rc-client-secret",
+    "account_sid": "rc-account",
+    "extra": {
+      "webhook_secret": "rc-verification-token"
+    }
+  },
+  "cases": [
+    {
+      "name": "valid_ringcentral_verification_token",
+      "path": "/telephony/ringcentral/voice",
+      "body": "{\"event\":\"/restapi/v1.0/account/~/extension/~/telephony/sessions\"}",
+      "headers": {
+        "Content-Type": "application/json",
+        "Verification-Token": "rc-verification-token"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "invalid_ringcentral_verification_token",
+      "path": "/telephony/ringcentral/voice",
+      "body": "{\"event\":\"/restapi/v1.0/account/~/extension/~/telephony/sessions\"}",
+      "headers": {
+        "Content-Type": "application/json",
+        "Verification-Token": "wrong-token"
+      },
+      "expected_valid": false
+    }
+  ]
+}

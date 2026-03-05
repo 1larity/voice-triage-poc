@@ -20,7 +20,7 @@ Local-first voice triage scaffold for a dev PC. You can run either:
 - SQLite persistence for turns (`./data/voice_triage.db`)
 - Tests with `pytest`
 - Lint/type tooling (`ruff`, `mypy`) + pre-commit + GitHub Actions CI
-- Developer references for REST API, BYO inference, and MCP under `docs/`
+- Developer references for REST API, BYO inference, telephony, and MCP under `docs/`
 
 ## Quickstart
 
@@ -194,6 +194,10 @@ make lint
 make typecheck
 make docstrings
 make test
+make telephony-contract
+make telephony-smoke-local
+# with custom base URL:
+# make telephony-smoke-remote BASE_URL=https://your-public-host
 make demo
 make web
 make api
@@ -207,6 +211,9 @@ make web-ssl
 
 - REST API reference: `docs/API_REFERENCE.md`
 - BYO inference reference: `docs/BYO_INFERENCE_REFERENCE.md`
+- Telephony provider how-tos: `docs/TELEPHONY_REFERENCE.md`
+- Telephony guide index: `docs/telephony/README.md`
+- Telephony integration status: `docs/TELEPHONY_INTEGRATIONS.md`
 - MCP reference: `docs/MCP_REFERENCE.md`
 
 ## Audio prerequisites (brief)

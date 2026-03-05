@@ -1,0 +1,38 @@
+{
+  "provider": "gamma",
+  "config": {
+    "extra": {
+      "webhook_secret": "gamma-secret"
+    }
+  },
+  "cases": [
+    {
+      "name": "valid_gamma_signature",
+      "path": "/telephony/gamma/voice",
+      "body": "{\"call_id\":\"gamma-1\"}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "signature": {
+        "type": "hmac_sha256_hex",
+        "header": "X-Gamma-Signature",
+        "secret": "gamma-secret"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "invalid_gamma_signature",
+      "path": "/telephony/gamma/voice",
+      "body": "{\"call_id\":\"gamma-2\"}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "signature": {
+        "type": "hmac_sha256_hex",
+        "header": "X-Gamma-Signature",
+        "secret": "wrong-gamma-secret"
+      },
+      "expected_valid": false
+    }
+  ]
+}

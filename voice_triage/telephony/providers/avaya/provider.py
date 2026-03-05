@@ -27,6 +27,7 @@ from voice_triage.telephony.providers.avaya.parser import (
     validate_basic_auth,
 )
 from voice_triage.telephony.registry import register_provider
+from voice_triage.telephony.shared.auth import get_header
 
 logger = logging.getLogger(__name__)
 
@@ -101,8 +102,8 @@ class AvayaProvider(TelephonyProvider):
             True if signature is valid.
         """
         # Try signature validation first
-        signature = headers.get("X-Avaya-Signature") or headers.get(
-            "X-Webhook-Signature"
+        signature = get_header(headers, "X-Avaya-Signature") or get_header(
+            headers, "X-Webhook-Signature"
         )
 
         if signature:
@@ -113,7 +114,7 @@ class AvayaProvider(TelephonyProvider):
             return False
 
         # Fall back to Basic auth
-        auth_header = headers.get("Authorization", "")
+        auth_header = get_header(headers, "Authorization")
         if auth_header:
             extra = self.config.extra or {}
             return validate_basic_auth(
@@ -514,6 +515,21 @@ class AvayaProvider(TelephonyProvider):
             timestamp=phone_call.started_at or datetime.now(UTC),
             data=data,
         )
+
+    def extract_transcript(self, data: dict[str, Any]) -> str:
+        """Extract transcript text from Avaya webhook payloads."""
+        if not isinstance(data, dict):
+            return ""
+
+        for key in ("transcript", "speech", "text", "SpeechResult"):
+            value = data.get(key)
+            if isinstance(value, str):
+                return value
+            if isinstance(value, dict):
+                nested = value.get("text") or value.get("transcript")
+                if isinstance(nested, str):
+                    return nested
+        return ""
 
     def get_webhook_path(self, event_type: str = "") -> str:
         """Get the webhook path for a specific event type.

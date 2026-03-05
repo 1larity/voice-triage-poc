@@ -41,6 +41,7 @@ from voice_triage.telephony.providers.teams.parser import (
     parse_inbound_call,
 )
 from voice_triage.telephony.registry import register_provider
+from voice_triage.telephony.shared.auth import get_header
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +137,7 @@ class TeamsDirectRoutingProvider(TelephonyProvider):
             True if signature is valid.
         """
         # Check for validation request (initial subscription)
-        validation_token = headers.get("validationtoken") or headers.get("ValidationToken")
+        validation_token = get_header(headers, "validationtoken")
         if validation_token:
             # Validation requests are always valid
             # The response should echo back the token
@@ -150,8 +151,14 @@ class TeamsDirectRoutingProvider(TelephonyProvider):
 
         try:
             data = json.loads(body.decode("utf-8"))
+            webhook_client_state = data.get("clientState")
+            if webhook_client_state is None:
+                notifications = data.get("value", [])
+                if notifications and isinstance(notifications[0], dict):
+                    webhook_client_state = notifications[0].get("clientState")
+
             # Verify client state matches
-            if data.get("clientState") == client_state:
+            if webhook_client_state == client_state:
                 return True
 
             logger.warning("Teams webhook client state mismatch")
@@ -171,7 +178,8 @@ class TeamsDirectRoutingProvider(TelephonyProvider):
         Returns:
             Validation token if present, None otherwise.
         """
-        return headers.get("validationtoken") or headers.get("ValidationToken")
+        token = get_header(headers, "validationtoken")
+        return token or None
 
     async def parse_inbound_call(
         self,
@@ -499,6 +507,37 @@ class TeamsDirectRoutingProvider(TelephonyProvider):
             "Consider using pre-recorded audio with play_audio() instead."
         )
         return False
+
+    def extract_transcript(self, data: dict[str, Any]) -> str:
+        """Extract transcript text from Teams notification payloads."""
+        if not isinstance(data, dict):
+            return ""
+
+        # Graph webhook notifications commonly wrap payload in value[].
+        notifications = data.get("value")
+        if isinstance(notifications, list) and notifications:
+            first = notifications[0]
+            if isinstance(first, dict):
+                resource_data = first.get("resourceData", {})
+                if isinstance(resource_data, dict):
+                    for key in ("transcript", "speech", "text"):
+                        value = resource_data.get(key)
+                        if isinstance(value, str):
+                            return value
+                        if isinstance(value, dict):
+                            nested = value.get("text") or value.get("transcript")
+                            if isinstance(nested, str):
+                                return nested
+
+        for key in ("transcript", "speech", "text"):
+            value = data.get(key)
+            if isinstance(value, str):
+                return value
+            if isinstance(value, dict):
+                nested = value.get("text") or value.get("transcript")
+                if isinstance(nested, str):
+                    return nested
+        return ""
 
     def get_webhook_path(self, event_type: str) -> str:
         """Get the webhook path for a specific event type.

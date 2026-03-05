@@ -46,6 +46,7 @@ from voice_triage.telephony.providers.discord.parser import (
     validate_hmac_signature,
 )
 from voice_triage.telephony.registry import register_provider
+from voice_triage.telephony.shared.auth import get_header
 
 logger = logging.getLogger(__name__)
 
@@ -139,8 +140,8 @@ class DiscordProvider(TelephonyProvider):
         Returns:
             True if signature is valid.
         """
-        signature = headers.get("X-Signature-Ed25519")
-        timestamp = headers.get("X-Signature-Timestamp")
+        signature = get_header(headers, "X-Signature-Ed25519")
+        timestamp = get_header(headers, "X-Signature-Timestamp")
 
         if signature and timestamp:
             # Discord Interaction signature (ED25519)
@@ -156,7 +157,12 @@ class DiscordProvider(TelephonyProvider):
             logger.warning("No webhook_secret configured for Discord validation")
             return False
 
-        return validate_hmac_signature(body, webhook_secret)
+        webhook_signature = get_header(headers, "X-Discord-Signature")
+        if not webhook_signature:
+            logger.warning("Missing Discord webhook signature header")
+            return False
+
+        return validate_hmac_signature(webhook_signature, body, webhook_secret)
 
     async def _validate_interaction_signature(
         self,
@@ -199,6 +205,10 @@ class DiscordProvider(TelephonyProvider):
         Returns:
             Public key hex string or None.
         """
+        logger.warning(
+            "Discord public key auto-fetch is not implemented; configure "
+            "DISCORD_PUBLIC_KEY (provider extra.public_key)"
+        )
         try:
             self._get_http_client()
             # This would call Discord API to get application info

@@ -6,6 +6,7 @@ with Vonage's Voice API for handling inbound and outbound calls.
 
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 from collections.abc import AsyncIterator
@@ -26,6 +27,7 @@ from voice_triage.telephony.providers.vonage.parser import (
     validate_vonage_signature,
 )
 from voice_triage.telephony.registry import register_provider
+from voice_triage.telephony.shared.auth import get_bearer_token, get_header
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +81,9 @@ class VonageProvider(TelephonyProvider):
     ) -> bool:
         """Validate a Vonage webhook signature.
 
-        Vonage signs webhooks with a JWT token in the Authorization header.
+        Supports two validation modes:
+        - X-Vonage-Signature (HMAC using api_secret)
+        - Authorization bearer token when webhook_secret is configured
 
         Args:
             headers: HTTP headers.
@@ -89,40 +93,35 @@ class VonageProvider(TelephonyProvider):
         Returns:
             True if signature is valid.
         """
-        # Vonage uses JWT tokens for webhook authentication
-        auth_header = headers.get("Authorization", "")
+        del path
+        signature = get_header(headers, "X-Vonage-Signature")
+        if signature:
+            return await self._validate_signature_webhook(signature, body)
 
-        if not auth_header:
-            # Fallback to signature validation for older webhooks
-            return await self._validate_signature_webhook(headers, body)
+        # Optional bearer-token path for gateways that front Vonage webhooks.
+        auth_header = get_header(headers, "Authorization")
+        bearer_token = get_bearer_token(auth_header)
+        webhook_secret = self.config.webhook_secret or self.config.extra.get("webhook_secret")
+        if bearer_token and webhook_secret:
+            return hmac.compare_digest(bearer_token, webhook_secret)
 
-        # Validate JWT token
-        try:
-            # Parse and validate the JWT
-            # The vonage library handles this internally
-            return True
-        except Exception as exc:
-            logger.warning(f"Failed to validate Vonage webhook JWT: {exc}")
-            return False
+        logger.warning("Vonage webhook missing verifiable signature or bearer token")
+        return False
 
     async def _validate_signature_webhook(
         self,
-        headers: dict[str, str],
+        signature: str,
         body: bytes,
     ) -> bool:
         """Validate Vonage signature-based webhook.
 
         Args:
-            headers: HTTP headers.
+            signature: X-Vonage-Signature header value.
             body: Raw request body.
 
         Returns:
             True if signature is valid.
         """
-        signature = headers.get("X-Vonage-Signature")
-        if not signature:
-            return False
-
         if not self.config.api_secret:
             return False
 

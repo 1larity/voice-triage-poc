@@ -32,6 +32,7 @@ from voice_triage.telephony.providers.ringcentral.response import (
     generate_call_control_response,
 )
 from voice_triage.telephony.registry import register_provider
+from voice_triage.telephony.shared.auth import get_header
 
 logger = logging.getLogger(__name__)
 
@@ -127,9 +128,7 @@ class RingCentralProvider(TelephonyProvider):
             True if signature is valid.
         """
         # RingCentral uses verification tokens
-        verification_token = headers.get("Verification-Token")
-        if not verification_token:
-            verification_token = headers.get("verification-token")
+        verification_token = get_header(headers, "Verification-Token")
 
         webhook_secret = self.config.extra.get("webhook_secret")
         if not webhook_secret:
@@ -379,6 +378,31 @@ class RingCentralProvider(TelephonyProvider):
             "Consider using pre-recorded audio with play_audio()."
         )
         return False
+
+    def extract_transcript(self, data: dict[str, Any]) -> str:
+        """Extract transcript text from RingCentral webhook payloads."""
+        if not isinstance(data, dict):
+            return ""
+
+        body_data = data.get("body", data)
+        if not isinstance(body_data, dict):
+            return ""
+
+        speech_to_text = body_data.get("speechToText")
+        if isinstance(speech_to_text, dict):
+            text = speech_to_text.get("transcript")
+            if isinstance(text, str):
+                return text
+
+        for key in ("transcript", "speechResult", "text"):
+            value = body_data.get(key)
+            if isinstance(value, str):
+                return value
+            if isinstance(value, dict):
+                nested = value.get("text") or value.get("transcript")
+                if isinstance(nested, str):
+                    return nested
+        return ""
 
     def get_webhook_path(self, event_type: str) -> str:
         """Get the webhook path for a specific event type.

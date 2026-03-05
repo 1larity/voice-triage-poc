@@ -99,7 +99,8 @@ def parse_inbound_call(
     # RingCentral format: from/to can be objects with phoneNumber
     from_data = body_data.get("from", {})
     if isinstance(from_data, dict):
-        from_number = from_data.get("phoneNumber", from_data.get("number", ""))
+        from_value = from_data.get("phoneNumber", from_data.get("number", ""))
+        from_number = str(from_value) if from_value is not None else ""
     elif isinstance(from_data, str):
         from_number = from_data
 
@@ -107,11 +108,13 @@ def parse_inbound_call(
     if isinstance(to_data, list) and to_data:
         first_to = to_data[0]
         if isinstance(first_to, dict):
-            to_number = first_to.get("phoneNumber", first_to.get("number", ""))
+            to_value = first_to.get("phoneNumber", first_to.get("number", ""))
+            to_number = str(to_value) if to_value is not None else ""
         elif isinstance(first_to, str):
             to_number = first_to
     elif isinstance(to_data, dict):
-        to_number = to_data.get("phoneNumber", to_data.get("number", ""))
+        to_value = to_data.get("phoneNumber", to_data.get("number", ""))
+        to_number = str(to_value) if to_value is not None else ""
     elif isinstance(to_data, str):
         to_number = to_data
 

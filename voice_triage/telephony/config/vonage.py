@@ -32,6 +32,9 @@ class VonageConfig:
     private_key_path: str | None = None
     """Path to private key for JWT authentication."""
 
+    webhook_secret: str | None = None
+    """Shared secret for validating inbound webhook bearer tokens."""
+
     @classmethod
     def from_env(cls) -> VonageConfig:
         """Load configuration from environment variables.
@@ -46,6 +49,7 @@ class VonageConfig:
             default_from_number=os.getenv("VONAGE_DEFAULT_FROM_NUMBER"),
             application_id=os.getenv("VONAGE_APPLICATION_ID"),
             private_key_path=os.getenv("VONAGE_PRIVATE_KEY_PATH"),
+            webhook_secret=os.getenv("VONAGE_WEBHOOK_SECRET"),
         )
 
     def is_configured(self) -> bool:

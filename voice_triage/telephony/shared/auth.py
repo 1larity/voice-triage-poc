@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+from collections.abc import Mapping
 
 
 def compute_hmac(
@@ -70,3 +71,55 @@ def validate_basic_auth(
         return provided_username == username and provided_password == password
     except (ValueError, UnicodeDecodeError):
         return False
+
+
+def get_header(
+    headers: Mapping[str, str],
+    name: str,
+    default: str = "",
+) -> str:
+    """Get a header value with case-insensitive lookup.
+
+    Args:
+        headers: Request headers mapping.
+        name: Header name to retrieve.
+        default: Value to return when no match is found.
+
+    Returns:
+        The header value if found, otherwise default.
+    """
+    # Fast path for exact casing.
+    exact = headers.get(name)
+    if exact is not None:
+        return exact
+
+    lowered = name.lower()
+    value = headers.get(lowered)
+    if value is not None:
+        return value
+
+    # Fallback for arbitrary mixed-case mappings.
+    for key, candidate in headers.items():
+        if key.lower() == lowered:
+            return candidate
+    return default
+
+
+def get_bearer_token(auth_header: str) -> str:
+    """Extract bearer token from Authorization header.
+
+    Args:
+        auth_header: Authorization header value.
+
+    Returns:
+        Bearer token if present, else empty string.
+    """
+    if not auth_header:
+        return ""
+    parts = auth_header.strip().split(" ", 1)
+    if len(parts) != 2:
+        return ""
+    scheme, token = parts
+    if scheme.lower() != "bearer":
+        return ""
+    return token.strip()

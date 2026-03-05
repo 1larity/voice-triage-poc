@@ -1,0 +1,40 @@
+{
+  "provider": "circleloop",
+  "config": {
+    "api_key": "circleloop-key",
+    "api_secret": "circleloop-secret",
+    "extra": {
+      "webhook_secret": "circleloop-webhook-secret"
+    }
+  },
+  "cases": [
+    {
+      "name": "valid_circleloop_signature",
+      "path": "/telephony/circleloop/voice",
+      "body": "{\"call_id\":\"cl-1\",\"from\":\"+447700900001\",\"to\":\"+447700900002\"}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "signature": {
+        "type": "hmac_sha256_hex",
+        "header": "X-CircleLoop-Signature",
+        "secret": "circleloop-webhook-secret"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "invalid_circleloop_signature",
+      "path": "/telephony/circleloop/voice",
+      "body": "{\"call_id\":\"cl-2\",\"from\":\"+447700900001\",\"to\":\"+447700900002\"}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "signature": {
+        "type": "hmac_sha256_hex",
+        "header": "X-CircleLoop-Signature",
+        "secret": "wrong-circleloop-secret"
+      },
+      "expected_valid": false
+    }
+  ]
+}

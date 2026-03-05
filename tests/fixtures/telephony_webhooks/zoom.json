@@ -1,0 +1,41 @@
+{
+  "provider": "zoom",
+  "config": {
+    "api_key": "zoom-client-id",
+    "api_secret": "zoom-client-secret",
+    "account_sid": "zoom-account",
+    "extra": {
+      "webhook_secret": "zoom-webhook-secret"
+    }
+  },
+  "cases": [
+    {
+      "name": "valid_zoom_signature",
+      "path": "/telephony/zoom/voice",
+      "body": "{\"event\":\"phone.callee_answered\",\"payload\":{\"object\":{\"call_id\":\"zoom-1\"}}}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "signature": {
+        "type": "zoom_v0_sha256",
+        "header": "x-zm-signature",
+        "secret": "zoom-webhook-secret"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "invalid_zoom_signature",
+      "path": "/telephony/zoom/voice",
+      "body": "{\"event\":\"phone.callee_answered\",\"payload\":{\"object\":{\"call_id\":\"zoom-2\"}}}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "signature": {
+        "type": "zoom_v0_sha256",
+        "header": "x-zm-signature",
+        "secret": "wrong-zoom-secret"
+      },
+      "expected_valid": false
+    }
+  ]
+}

@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from voice_triage.http.rest import (
     TriageApi,
     _discover_piper_voices,
+    _include_telephony_router,
     create_api_router,
     initialize_runtime,
 )
@@ -39,6 +40,7 @@ def create_app() -> FastAPI:
     app.include_router(create_api_router(api, prefix="/api/v1", include_in_schema=True))
     # Backward-compatible aliases for existing clients/scripts.
     app.include_router(create_api_router(api, prefix="/api", include_in_schema=False))
+    _include_telephony_router(app, runtime)
     return app
 
 

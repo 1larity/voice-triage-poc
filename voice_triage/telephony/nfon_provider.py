@@ -13,7 +13,6 @@ from voice_triage.telephony.providers.nfon import (
     NFON_UK_API_URL,
     NFONClient,
     NFONProvider,
-    generate_nfon_response,
     parse_call_status_data,
     parse_inbound_call,
 )
@@ -24,7 +23,6 @@ __all__ = [
     "NFON_UK_API_URL",
     "NFONClient",
     "NFONProvider",
-    "generate_nfon_response",
     "parse_call_status_data",
     "parse_inbound_call",
 ]
