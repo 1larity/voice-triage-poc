@@ -1,0 +1,46 @@
+{
+  "provider": "avaya",
+  "config": {
+    "webhook_secret": "avaya-webhook-secret",
+    "extra": {
+      "username": "avaya-user",
+      "password": "avaya-pass"
+    }
+  },
+  "cases": [
+    {
+      "name": "valid_avaya_hmac_signature",
+      "path": "/telephony/avaya/voice",
+      "body": "{\"callId\":\"avaya-1\",\"callingNumber\":\"+447700900001\",\"calledNumber\":\"+447700900002\"}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "signature": {
+        "type": "hmac_sha256_hex",
+        "header": "X-Avaya-Signature",
+        "secret": "avaya-webhook-secret"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "valid_avaya_basic_auth_fallback",
+      "path": "/telephony/avaya/voice",
+      "body": "{\"callId\":\"avaya-2\"}",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic YXZheWEtdXNlcjphdmF5YS1wYXNz"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "invalid_avaya_basic_auth_fallback",
+      "path": "/telephony/avaya/voice",
+      "body": "{\"callId\":\"avaya-3\"}",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic d3Jvbmc6Y3JlZHM="
+      },
+      "expected_valid": false
+    }
+  ]
+}

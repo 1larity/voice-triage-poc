@@ -1,0 +1,30 @@
+{
+  "provider": "bt",
+  "config": {
+    "extra": {
+      "webhook_token": "bt-token"
+    }
+  },
+  "cases": [
+    {
+      "name": "valid_bt_bearer_token",
+      "path": "/telephony/bt/voice",
+      "body": "{\"call_id\":\"bt-1\"}",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer bt-token"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "invalid_bt_bearer_token",
+      "path": "/telephony/bt/voice",
+      "body": "{\"call_id\":\"bt-2\"}",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer wrong-token"
+      },
+      "expected_valid": false
+    }
+  ]
+}

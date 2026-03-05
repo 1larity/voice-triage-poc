@@ -1,4 +1,6 @@
-.PHONY: sync format lint typecheck docstrings test demo web api web-lan web-ssl stop-web stop-api cert-dev build-index reindex check
+BASE_URL ?= http://127.0.0.1:8000
+
+.PHONY: sync format lint typecheck docstrings test telephony-contract telephony-smoke-local telephony-smoke-remote demo web api web-lan web-ssl stop-web stop-api cert-dev build-index reindex check
 
 sync:
 	uv sync --dev
@@ -17,6 +19,15 @@ docstrings:
 
 test:
 	uv run pytest -q
+
+telephony-contract:
+	uv run pytest -q tests/test_telephony_webhook_contract_fixtures.py tests/test_telephony_webhook_security.py tests/test_telephony_wiring.py
+
+telephony-smoke-local:
+	uv run python scripts/telephony_smoke_runner.py --mode local
+
+telephony-smoke-remote:
+	uv run python scripts/telephony_smoke_runner.py --mode remote --base-url $(BASE_URL)
 
 demo:
 	uv run voice_triage demo

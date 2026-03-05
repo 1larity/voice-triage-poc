@@ -1,0 +1,53 @@
+{
+  "provider": "discord",
+  "config": {
+    "webhook_secret": "discord-webhook-secret",
+    "extra": {
+      "application_id": "1234567890"
+    }
+  },
+  "cases": [
+    {
+      "name": "valid_discord_hmac_signature",
+      "path": "/telephony/discord/voice",
+      "body": "{\"type\":2,\"channel_id\":\"1234\"}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "signature": {
+        "type": "hmac_sha256_hex",
+        "header": "X-Discord-Signature",
+        "secret": "discord-webhook-secret"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "valid_discord_prefixed_hmac_signature",
+      "path": "/telephony/discord/voice",
+      "body": "{\"type\":2,\"channel_id\":\"1235\"}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "signature": {
+        "type": "hmac_sha256_hex_prefixed",
+        "header": "X-Discord-Signature",
+        "secret": "discord-webhook-secret"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "invalid_discord_signature",
+      "path": "/telephony/discord/voice",
+      "body": "{\"type\":2,\"channel_id\":\"1236\"}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "signature": {
+        "type": "hmac_sha256_hex",
+        "header": "X-Discord-Signature",
+        "secret": "wrong-discord-secret"
+      },
+      "expected_valid": false
+    }
+  ]
+}

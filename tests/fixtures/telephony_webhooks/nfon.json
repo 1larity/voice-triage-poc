@@ -1,0 +1,38 @@
+{
+  "provider": "nfon",
+  "config": {
+    "api_key": "nfon-key",
+    "api_secret": "nfon-secret",
+    "webhook_secret": "nfon-webhook-secret"
+  },
+  "cases": [
+    {
+      "name": "valid_nfon_signature",
+      "path": "/telephony/nfon/voice",
+      "body": "{\"call\":{\"callId\":\"nfon-1\"}}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "signature": {
+        "type": "hmac_sha256_hex",
+        "header": "X-NFON-Signature",
+        "secret": "nfon-webhook-secret"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "invalid_nfon_signature",
+      "path": "/telephony/nfon/voice",
+      "body": "{\"call\":{\"callId\":\"nfon-2\"}}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "signature": {
+        "type": "hmac_sha256_hex",
+        "header": "X-NFON-Signature",
+        "secret": "wrong-nfon-secret"
+      },
+      "expected_valid": false
+    }
+  ]
+}

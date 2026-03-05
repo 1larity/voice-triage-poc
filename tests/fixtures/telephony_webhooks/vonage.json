@@ -1,0 +1,44 @@
+{
+  "provider": "vonage",
+  "config": {
+    "api_key": "key",
+    "api_secret": "vonage-api-secret",
+    "webhook_secret": "vonage-bearer-secret"
+  },
+  "cases": [
+    {
+      "name": "valid_vonage_hmac_signature",
+      "path": "/telephony/vonage/voice",
+      "body": "{\"uuid\":\"uuid-1\",\"from\":\"+447700900001\",\"to\":\"+447700900002\"}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "signature": {
+        "type": "hmac_sha512_hex",
+        "header": "X-Vonage-Signature",
+        "secret": "vonage-api-secret"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "valid_vonage_bearer_token",
+      "path": "/telephony/vonage/voice",
+      "body": "{\"uuid\":\"uuid-2\"}",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer vonage-bearer-secret"
+      },
+      "expected_valid": true
+    },
+    {
+      "name": "invalid_vonage_bearer_token",
+      "path": "/telephony/vonage/voice",
+      "body": "{\"uuid\":\"uuid-3\"}",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer wrong-token"
+      },
+      "expected_valid": false
+    }
+  ]
+}
